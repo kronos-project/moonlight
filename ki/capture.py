@@ -1,4 +1,5 @@
 import logging
+import os
 import traceback
 from types import TracebackType
 from kinp import WizDMLDecoder, DMLMessageObject
@@ -15,9 +16,10 @@ from os.path import isfile, join
 class KIPacketSniffer:
     def __init__(self):
         self.stream = None
-        res_folder = "/Users/ethanzeigler/Programming/offshot projects/KI/moonlight/res/dml/messages/"
+        res_folder = os.path.join(os.path.dirname(__file__), '..' 'res', 'dml', 'messages')
         protocols = [f for f in listdir(res_folder) if isfile(join(res_folder, f))]
         protocols = map(lambda x: join(res_folder, x), protocols)
+        return WizDMLDecoder(*protocols)
         self.decoder = WizDMLDecoder(*protocols)
 
     def scapy_callback(self, pkt: Packet):
@@ -55,7 +57,7 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
         level=logging.DEBUG,
         handlers=[
-            logging.FileHandler("moonlight.log"),
+            logging.FileHandler(os.path.join(os.path.dirname(__file__), '..', 'log', 'out.log')),
             logging.StreamHandler(sys.stdout),
         ],
     )
