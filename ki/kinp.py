@@ -165,9 +165,10 @@ class DMLMessageObject:
     def __init__(
         self,
         fields: List,
-        protocol_id: int = -1,
+        protocol_id: int = None,
         protocol_desc: str = None,
-        msg_id: int = -1,
+        msg_id: int = None,
+        order_id: int = None,
         msg_desc: str = None,
         source: str = None,
     ):
@@ -200,6 +201,7 @@ class DMLMessageDef:
             fields (Element): "Record" XML Element to load
         """
         self.id = None
+        self.order = None
         self.name = None
         self.desc = None
         self.handler = None
@@ -211,6 +213,8 @@ class DMLMessageDef:
                 self.desc = field.text
             elif field.tag == "_MsgHandler":
                 self.handler = field.text
+            elif field.tag == "_MsgOrder":
+                self.order = int(field.text)
             else:
                 field_map = {}
                 field_map["name"] = field.tag
@@ -263,6 +267,7 @@ class DMLMessageDef:
     def __repr__(self) -> str:
         return f"""DMLMessageDef:
             id = {self.id}
+            order = {self.order}
             name = {self.name}
             desc = {self.desc}
             handler = {self.handler}
@@ -275,9 +280,13 @@ class DMLMessageDef:
         Args:
             list ([DMLMessageDef]): list of DMLMessageDefs to sort and assign ids
         """
-        # sort on the definition name
+        # sort on the order number, or definition name if undefined
+        # FIXME: is there a case where both are given?
         def msg_key(msg):
-            return msg.name
+            if msg.order != None:
+                return msg.order
+            else:
+                return msg.name
 
         # sort and assign ids based on ordinal (ASCII chart) order
         defs.sort(key=msg_key)
@@ -285,7 +294,10 @@ class DMLMessageDef:
         # assign ids
         id_map = {}
         for i, dml_def in enumerate(defs, start=1):
+            if dml_def.order != None and i != dml_def.order:
+                raise Exception("Bad order to id conversion caught")
             dml_def.id = i
+            
             id_map[i] = dml_def
 
         return id_map
@@ -363,6 +375,8 @@ class WizDMLDecoder:
     def load_protocol(self, protocol_file):
         protocol = DMLProtocol(protocol_file)
         logging.info(f"loaded protocol {protocol.service_id}: {protocol.description}")
+        for msg in protocol.message_map.values():
+            logging.info(f"\t{msg.id}: {msg.name}")
         self.protocol_map[protocol.service_id] = protocol
 
     def __init__(self, *args) -> None:
