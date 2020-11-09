@@ -5,7 +5,7 @@ import io
 import logging
 from os import read
 import struct
-from typing import List, NewType
+from typing import Any, List, NewType
 
 
 class EncodingType(Enum):
