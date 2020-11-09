@@ -56,7 +56,7 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
         level=logging.DEBUG,
         handlers=[
-            logging.FileHandler(os.path.join(os.path.dirname(__file__), '..', 'log', 'out.log')),
+            #logging.FileHandler(os.path.join(os.path.dirname(__file__), '..', 'log', 'out.log')),
             logging.StreamHandler(sys.stdout),
         ],
     )

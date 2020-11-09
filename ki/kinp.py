@@ -85,7 +85,7 @@ class BytestreamReader:
         Args:
             bites ([bytes]): [bytestring to read]
         """
-        self.stream = BufferedReader(io.BytesIO(bytes))
+        self.stream = BufferedReader(io.BytesIO(bites))
 
     def __read(self, len: int, peek=False) -> bytes:
         """Reads the given number of bytes off the string, peeking+truncate
@@ -279,7 +279,7 @@ class DMLMessageDef:
         def msg_key(msg):
             return msg.name
 
-        # sort and assign ids based on alphabetical order
+        # sort and assign ids based on ordinal (ASCII chart) order
         defs.sort(key=msg_key)
 
         # assign ids
