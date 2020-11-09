@@ -5,7 +5,7 @@ import io
 import logging
 from os import read
 import struct
-from typing import Any, List, NewType
+from typing import Any, List, NewType, Optional
 
 
 class EncodingType(Enum):
@@ -344,6 +344,7 @@ class DMLProtocol:
     def decode_message(
         self,
         reader: BytestreamReader,
+        original_data: bytes = None,
         no_ki_header=True,
         no_msg_header=True,
         no_service_id=False,
@@ -363,8 +364,16 @@ class DMLProtocol:
 
         message_id = reader.read(EncodingType.UBYT)
         len = reader.read(EncodingType.USHRT)
-
-        dml_object = self.message_map[message_id].decode_message(reader)
+        try:
+            dml_object = self.message_map[message_id].decode_message(reader)
+        except:
+            logging.error(
+                "Failed to decode message. "\
+                f"protocol_id: {self.service_id}, "\
+                f"msg_id: {self.message_map[message_id]}, "\
+                f"packet_data (optional): [{original_data}]"
+            )
+            return None
         if dml_object != None:
             dml_object.protocol_id = self.service_id
             dml_object.protocol_desc = self.description
@@ -420,7 +429,7 @@ class WizDMLDecoder:
         if service_id not in self.protocol_map:
             logging.warn(f"unknown protocol: {service_id}")
             return None  # implement custom exception
-        return self.protocol_map[service_id].decode_message(reader)
+        return self.protocol_map[service_id].decode_message(reader, data)
 
 
 if __name__ == "__main__":
