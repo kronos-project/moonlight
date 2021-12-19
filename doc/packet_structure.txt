@@ -2,11 +2,10 @@ Structure:
 
 Name            Type          Description
 startSignal     uint16_t      Always 0xF00D. Indicates the start of a message.
-- -             - -           - -
 length          uint16_t      The length of the message payload.
-- -             - -           - -
 isControl       uint8_t       0 if DML, else control
 opCode          uint8_t       If isControl is true (>0), this indicates the type of control message found in the message data. Otherwise, this has not been observed to be anything but 0.
+- -             - -           - -
 undefined       uint8_t       Hasn't been observed as anything but 0. Unknown use.
 undefined       uint8_t       Hasn't been observed as anything but 0. Unknown use.
 service_id      uint8_t       ID number of the DML protocol

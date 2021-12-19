@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "moonlight"
+version = "0.1.0"
+description = "Wizard101 MITM agent"
+authors = ["Ethan Zeigler <ethanzeigler@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+scapy = "^2.4.5"
+black = "^21.12b0"
+overrides = "^6.1.0"
+pylint = "^2.12.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+black = {version = "^21.12b0", allow-prereleases = true}
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

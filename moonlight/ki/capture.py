@@ -1,10 +1,9 @@
 import logging
 import os
 import traceback
-from types import TracebackType
-from kinp import WizDMLDecoder, DMLMessageObject
+from .dml import DMLProtocol, DMLMessageObject
 import sys
-from scapy.all import sr1, IP, ICMP, TCP
+from scapy.all import IP, TCP
 from scapy.packet import NoPayload, Packet, Raw
 from scapy.sendrecv import AsyncSniffer, sniff
 from scapy.sessions import TCPSession
@@ -16,28 +15,28 @@ from os.path import isfile, join
 class KIPacketSniffer:
     def __init__(self):
         self.stream = None
-        res_folder = os.path.join(os.path.dirname(__file__), '..', 'res', 'dml', 'messages')
+        res_folder = os.path.join(
+            os.path.dirname(__file__), "..", "res", "dml", "messages"
+        )
         protocols = [f for f in listdir(res_folder) if isfile(join(res_folder, f))]
         protocols = map(lambda x: join(res_folder, x), protocols)
-        self.decoder = WizDMLDecoder(*protocols)
+        self.decoder = DMLProtocol(*protocols)
 
     def scapy_callback(self, pkt: Packet):
-        if type(pkt[TCP].payload) is Raw:
-            try:
-                raw = bytes(pkt[TCP].payload)
-                decoded = self.decoder.decode_message(raw)
-                if type(decoded) is DMLMessageObject:
-                    if pkt[IP].src == "165.193.54.36":
-                        decoded.source = "server"
-                    else:
-                        decoded.source = "client"
-                logging.info(decoded)
-            except:
-                logging.error(f"Cannot parse packet: {traceback.print_exc()}")
+        if type(pkt[TCP].payload) is not Raw:
+            return
+        try:
+            raw = bytes(pkt[TCP].payload)
+            decoded = self.decoder.decode_message(raw)
+            if type(decoded) is DMLMessageObject:
+                decoded.source = "server" if pkt[IP].src == "79.110.83.15" else "client"
+            logging.info(decoded)
+        except:
+            logging.error(f"Cannot parse packet: {traceback.print_exc()}")
 
     def open_livestream(self):
         self.stream = AsyncSniffer(
-            filter="src net 165.193.0.0/16 or dst net 165.193.0.0/16",
+            filter="dst host 79.110.83.12 or src host 79.110.83.12",
             session=TCPSession,
             prn=self.scapy_callback,
         )
@@ -52,16 +51,17 @@ class KIPacketSniffer:
 
 if __name__ == "__main__":
     logging.basicConfig(
-        format="[%(asctime)s] %(levelname)s: %(message)s",
+        # format="[%(asctime)s] %(levelname)s: %(message)s",
+        format="%(message)s",
         datefmt="%H:%M:%S",
         level=logging.DEBUG,
         handlers=[
-            #logging.FileHandler(os.path.join(os.path.dirname(__file__), '..', 'log', 'out.log')),
+            # logging.FileHandler(os.path.join(os.path.dirname(__file__), '..', 'log', 'out.log')),
             logging.StreamHandler(sys.stdout),
         ],
     )
     print("hi")
     s = KIPacketSniffer()
     print("Opening packet stream")
-    
+
     s.open_livestream()
