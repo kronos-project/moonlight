@@ -1,3 +1,7 @@
+"""
+    Shared stuff between the KI network protocol
+"""
+
 from enum import Enum
 from io import BufferedReader
 import io
@@ -8,6 +12,7 @@ from typing import Any, List, NewType, Optional, Union
 
 KI_HEADER_LEN = 8
 DML_HEADER_LEN = 2
+
 
 class EncodingType(Enum):
     """Bit encodings used by the KI network protocol.
@@ -169,7 +174,6 @@ class BytestreamReader:
         return self.__str__()
 
 
-
 class KIMessage:
     def __init__(self, protocol_class) -> None:
         self.protocol_class = protocol_class
@@ -206,7 +210,9 @@ class KIMessageDecoder:
     def __init__(self) -> None:
         pass
 
-    def decode_message(self, reader: Union[BytestreamReader, bytes], **kwargs) -> KIMessage:
+    def decode_message(
+        self, reader: Union[BytestreamReader, bytes], **kwargs
+    ) -> KIMessage:
         """
         decode_message Decodes a KI message (missing protocol context)
 

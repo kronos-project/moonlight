@@ -1,3 +1,8 @@
+"""
+    Classes dealing with the framing of KI game packets. Also holds the whole
+    KI protocol wrapper.
+"""
+
 import os.path
 from os import PathLike
 from os.path import isfile, listdir, join

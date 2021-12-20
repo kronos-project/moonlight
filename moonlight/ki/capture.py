@@ -1,3 +1,7 @@
+"""
+    Provides capture utilities for working with KI game network data
+"""
+
 import logging
 import os
 import traceback

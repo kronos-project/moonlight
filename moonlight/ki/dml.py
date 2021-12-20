@@ -98,7 +98,7 @@ class DMLMessageDecoder(KIMessageDecoder):
         reader: Union[BytestreamReader, bytes],
         has_ki_header=False,
         has_dml_header=False,
-        **kwargs
+        **kwargs,
     ) -> DMLMessageObject:
         if has_ki_header:
             # advance past ki header and message header
@@ -270,4 +270,6 @@ class DMLProtocol(KIMessageProtocol):
         if service_id not in self.protocol_map:
             logging.warn(f"unknown dml protocol: {service_id}")
             return None  # implement custom exception
-        return self.protocol_map[service_id].decode_dml_service(reader, has_service_id=True)
+        return self.protocol_map[service_id].decode_dml_service(
+            reader, has_service_id=True
+        )

@@ -1,3 +1,8 @@
+"""
+    Implementation of the KI control message protocol
+"""
+
+
 from .net_common import *
 import struct
 
