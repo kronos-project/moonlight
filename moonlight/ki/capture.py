@@ -1,6 +1,8 @@
 import logging
 import os
 import traceback
+
+from moonlight.ki.framing import KIStreamReader
 from .dml import DMLProtocol, DMLMessageObject
 import sys
 from scapy.all import IP, TCP
@@ -20,17 +22,14 @@ class KIPacketSniffer:
         )
         protocols = [f for f in listdir(res_folder) if isfile(join(res_folder, f))]
         protocols = map(lambda x: join(res_folder, x), protocols)
-        self.decoder = DMLProtocol(*protocols)
+        self.decoder = KIStreamReader()
 
     def scapy_callback(self, pkt: Packet):
         if type(pkt[TCP].payload) is not Raw:
             return
         try:
-            raw = bytes(pkt[TCP].payload)
-            decoded = self.decoder.decode_message(raw)
-            if type(decoded) is DMLMessageObject:
-                decoded.source = "server" if pkt[IP].src == "79.110.83.15" else "client"
-            logging.info(decoded)
+            message = self.decoder.decode_packet(bytes(pkt[TCP].payload))
+            logging.info(message)
         except:
             logging.error(f"Cannot parse packet: {traceback.print_exc()}")
 

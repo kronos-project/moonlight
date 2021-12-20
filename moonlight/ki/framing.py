@@ -3,7 +3,7 @@ from os import PathLike
 from os.path import isfile, listdir, join
 
 from scapy.utils import PcapReader
-from moonlight.ki.control import ControlDecoder
+from moonlight.ki.control import ControlDecoder, ControlProtocol
 
 from moonlight.ki.dml import DMLProtocol
 
@@ -35,7 +35,7 @@ class KIStreamReader:
         self.dml_decoder = DMLProtocol(*dml_services)
 
         # Load control decoder
-        self.control_decoder = ControlDecoder()
+        self.control_decoder: ControlProtocol = ControlProtocol()
 
     def __iter__(self):
         return self
@@ -43,6 +43,8 @@ class KIStreamReader:
     def decode_packet(
         self, reader: BytestreamReader, original_data: bytes = None, **kwargs
     ) -> KIMessage:
+        reader = None
+        header = None
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
 
@@ -53,8 +55,6 @@ class KIStreamReader:
             return None
 
         if header.content_is_control != 0:
-            logging.debug("is a control message")
-            return None
-        if header.control_opcode != 0:
-            logging.warn("umm. it says not a control, but I got control data. wat.")
-            return None
+            return self.control_decoder.decode_packet(reader, header)
+        else:
+            return self.dml_decoder.decode_packet(reader, header)
