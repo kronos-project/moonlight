@@ -2,7 +2,7 @@
 name = "moonlight"
 version = "0.1.0"
 description = "Wizard101 MITM agent"
-authors = ["Ethan Zeigler <ethanzeigler@gmail.com>"]
+authors = ["NA"]
 license = "MIT"
 
 [tool.poetry.dependencies]
@@ -11,6 +11,8 @@ scapy = "^2.4.5"
 black = "^21.12b0"
 overrides = "^6.1.0"
 pylint = "^2.12.2"
+PyQt6 = "^6.2.3"
+printrospector = {git = "https://gitlab.com/vale_/printrospector", rev = "main"}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"

@@ -18,10 +18,11 @@ from .net_common import *
 class KIStreamReader:
     def __init__(
         self,
+        typedef_file: PathLike,
         pcap_file: PathLike = None,
         msg_def_folder: PathLike = os.path.join(
             os.path.dirname(__file__), "..", "..", "res", "dml", "messages"
-        ),
+        )
     ) -> None:
         self.pcap_file = pcap_file
         self.msg_def_folder = msg_def_folder
@@ -41,6 +42,7 @@ class KIStreamReader:
 
         # Load control decoder
         self.control_decoder: ControlProtocol = ControlProtocol()
+        BytestreamReader(bites="", type_file="")
 
     def __iter__(self):
         return self

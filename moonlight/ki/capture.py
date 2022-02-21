@@ -14,19 +14,18 @@ from scapy.packet import NoPayload, Packet, Raw
 from scapy.sendrecv import AsyncSniffer, sniff
 from scapy.sessions import TCPSession
 
-from os import listdir
+from os import PathLike, listdir
 from os.path import isfile, join
 
 
 class KIPacketSniffer:
-    def __init__(self):
-        self.stream = None
-        res_folder = os.path.join(
+    def __init__(self, dml_def_folder: PathLike = os.path.join(
             os.path.dirname(__file__), "..", "res", "dml", "messages"
-        )
-        protocols = [f for f in listdir(res_folder) if isfile(join(res_folder, f))]
-        protocols = map(lambda x: join(res_folder, x), protocols)
-        self.decoder = KIStreamReader()
+        )):
+        self.stream = None
+        protocols = [f for f in listdir(dml_def_folder) if isfile(join(dml_def_folder, f))]
+        protocols = map(lambda x: join(dml_def_folder, x), protocols)
+        self.decoder = KIStreamReader(msg_def_folder=dml_def_folder)
 
     def scapy_callback(self, pkt: Packet):
         if type(pkt[TCP].payload) is not Raw:

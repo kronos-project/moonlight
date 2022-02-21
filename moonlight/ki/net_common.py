@@ -6,9 +6,11 @@ from enum import Enum
 from io import BufferedReader
 import io
 import logging
-from os import read
+from os import PathLike, read
 import struct
-from typing import Any, List, NewType, Optional, Union
+from typing import Any, ByteString, List, NewType, Optional, Union
+from printrospector import BinarySerializer, TypeCache
+from .object_property import build_property_object_serde
 
 KI_HEADER_LEN = 8
 DML_HEADER_LEN = 2
@@ -57,7 +59,13 @@ class EncodingType(Enum):
         2,
         "<H",
     )  # uint16 length definition followed by utf8
+    OBJSTR = (
+        "OBJSTR",
+        2,
+        "<H",
+    )  # uint16 length definition followed by utf8 encoding a PropertyObject
     WSTR = ("WSTR", 2, "<H")  # uint16 length definition followed by utf16 LE
+    OBJWSTR = ("OBJWSTR", 2, "<H")  # uint16 length definition followed by utf16 LE encoding a PropertyObject
     FLT = ("FLT", 4, "<f")  # float32
     DBL = ("DBL", 8, "<d")  # float64
     GID = ("GID", 8, "<q")  # uint64
@@ -86,13 +94,19 @@ class BytestreamReader:
     case.
     """
 
-    def __init__(self, bites: bytes) -> None:
+    object_property_serde = None
+
+    def __init__(self, bites: bytes, type_file: PathLike = None) -> None:
         """Initializes a BytestreamReader with a bytestring
 
         Args:
             bites ([bytes]): [bytestring to read]
         """
         self.stream = BufferedReader(io.BytesIO(bites))
+        if not BytestreamReader.object_property_serde and type_file:
+            BytestreamReader.object_property_serde = build_property_object_serde(type_file)
+
+
 
     def read_raw(self, len: int, peek=False) -> bytes:
         """Reads the given number of bytes off the string, peeking+truncate
@@ -125,7 +139,7 @@ class BytestreamReader:
         Returns:
             Any: the given EncodingType's python representation
         """
-        if enc_type is EncodingType.STR or enc_type is EncodingType.WSTR:
+        if enc_type in [EncodingType.STR, EncodingType.WSTR, EncodingType.OBJSTR, EncodingType.WSTR]:
             raise ValueError("Known special case. Cannot be read simply.")
         raw_bytes = None
         if peek:
@@ -137,13 +151,30 @@ class BytestreamReader:
         return unpacked_repr[0]
 
     # FIXME peek doesn't work on strings
-    def __str_read(self, peek=False):
+    def __str_read(self, peek=False, decode: bool = True):
         str_len = self.__simple_read(EncodingType.USHRT, peek=peek)
         bytes = self.stream.read(str_len)
+        if not decode:
+            return bytes
         try:
             return bytes.decode("utf-8")
         except:
             return bytes
+
+    def __property_object_str_read(self, peek=False):
+        bytes = self.__str_read(peek=peek, decode=False)
+        if BytestreamReader.object_property_serde:
+            return BytestreamReader.object_property_serde.deserialize(bytes)
+        return bytes
+
+    
+    def __property_object_wstr_read(self, peek=False):
+        bytes = self.__wstr_read(peek=peek, decode=False)
+        if BytestreamReader.object_property_serde:
+            return BytestreamReader.object_property_serde.deserialize(bytes)
+        return bytes
+        
+
 
     def __wstr_read(self, peek=False):
         str_len = self.__simple_read(EncodingType.USHRT, peek=peek)
@@ -159,6 +190,8 @@ class BytestreamReader:
     def read(self, enc_type, peek=False):
         if enc_type is EncodingType.STR:
             return self.__str_read(peek)
+        elif enc_type is EncodingType.OBJSTR:
+            return 
         elif enc_type is EncodingType.WSTR:
             return self.__wstr_read(peek)
         else:
@@ -175,8 +208,9 @@ class BytestreamReader:
 
 
 class KIMessage:
-    def __init__(self, protocol_class) -> None:
+    def __init__(self, protocol_class, original_bytes: ByteString = None) -> None:
         self.protocol_class = protocol_class
+        self.original_bytes = original_bytes
 
 
 class KIPacketHeader:
