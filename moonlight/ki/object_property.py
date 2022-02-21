@@ -33,16 +33,16 @@ def build_property_object_serde(typefile: PathLike, flags=0, exhaustive=False):
         
         
 
-# First, we need a type cache so that printrospector learns the types it may encounter.
-with open("path/to/types.json", encoding="utf-8") as f:
-    type_cache = TypeCache(json.load(f))
+# # First, we need a type cache so that printrospector learns the types it may encounter.
+# with open("path/to/types.json", encoding="utf-8") as f:
+#     type_cache = TypeCache(json.load(f))
 
-# Construct a new serializer instance in primitive mode without any flags.
-# We give it the previously crafted type_cache for identification of objects.
-serializer = BinarySerializer(type_cache, 0, False)
+# # Construct a new serializer instance in primitive mode without any flags.
+# # We give it the previously crafted type_cache for identification of objects.
+# serializer = BinarySerializer(type_cache, 0, False)
 
-# Now we can deserialize our character creation data.
-char = serializer.deserialize(ZORA_TIGERWALD)
+# # Now we can deserialize our character creation data.
+# char = serializer.deserialize(ZORA_TIGERWALD)
 
-# The resulting object behaves very much like a dictionary:
-assert char["m_templateID"] == 1
+# # The resulting object behaves very much like a dictionary:
+# assert char["m_templateID"] == 1
