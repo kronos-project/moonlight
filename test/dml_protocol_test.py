@@ -5,7 +5,7 @@ from posix import listdir
 from .fixtures import dml_update_poi
 
 import pytest
-from moonlight.ki.net_common import EncodingType, KIPacketHeader
+from moonlight.ki.net_common import BytestreamReader, EncodingType, KIPacketHeader
 from moonlight.ki.dml import DMLProtocol
 
 
@@ -33,6 +33,9 @@ def game_messages_correct_loc() -> bytes:
 
 
 def test_decode_poi(dml_protocol, dml_update_poi):
+    # forcibly load typedefs
+    # ugly as hell and needs a rewrite but will do for now
+    BytestreamReader(b'', type_file=os.path.join(os.path.dirname(__file__), "fixtures", "r707528_Wizard_1_460.json"))
     obj = dml_protocol.decode_packet(dml_update_poi, has_ki_header=True)
     assert obj != None
     assert obj.msg_id == 31

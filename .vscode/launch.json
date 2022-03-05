@@ -5,10 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Module",
+            "name": "Python: Debug Tests",
             "type": "python",
             "request": "launch",
-            "module": "enter-your-module-name"
+            "program": "${file}",
+            "purpose": [
+                "debug-test"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

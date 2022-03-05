@@ -3,11 +3,14 @@ from os import PathLike
 from typing_extensions import Self
 from printrospector import BinarySerializer, TypeCache
 
+class ObjectPropertyDecoderMixin:
+    pass
+
 def build_property_object_serde(typefile: PathLike, flags=0, exhaustive=False):
     with open(typefile, encoding="utf-8") as f:
         type_cache = TypeCache(json.load(f))
 
-    return BinarySerializer(type_cache, flags, False)
+    return BinarySerializer(type_cache, flags, exhaustive)
 
 
     # class PropertyObjectSerdeChain:

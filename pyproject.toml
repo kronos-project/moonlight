@@ -13,6 +13,7 @@ overrides = "^6.1.0"
 pylint = "^2.12.2"
 PyQt6 = "^6.2.3"
 printrospector = {git = "https://gitlab.com/vale_/printrospector", rev = "main"}
+click = "^8.0.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"

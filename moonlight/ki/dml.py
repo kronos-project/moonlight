@@ -1,6 +1,8 @@
 from collections import namedtuple
+from xmlrpc.client import Boolean
 from overrides import overrides
 import logging
+import xml.etree.ElementTree
 from typing import Dict, List, Union
 from .net_common import (
     DML_HEADER_LEN,
@@ -76,6 +78,8 @@ class DMLMessageDecoder(KIMessageDecoder):
             else:
                 field_map = {"name": field.tag, "text": (field.text or "").strip()}
                 field_map["type"] = EncodingType.from_str(field.attrib.get("TYPE"))
+                field_map["property_obj_flags"] = EncodingType.from_str(field.attrib.get("TYPE"))
+                field_map["property_obj_mask"] = field.attrib.get("MASK")
                 field_map["noxfer"] = field.attrib.get("NOXFER") == "TRUE"
                 self.fields.append(field_map)
 

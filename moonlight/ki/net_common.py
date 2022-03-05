@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
     Shared stuff between the KI network protocol
 """
@@ -8,12 +9,23 @@ import io
 import logging
 from os import PathLike, read
 import struct
+from xml.etree import ElementTree
 from typing import Any, ByteString, List, NewType, Optional, Union
 from printrospector import BinarySerializer, TypeCache
-from .object_property import build_property_object_serde
+from moonlight.ki.object_property import build_property_object_serde
 
 KI_HEADER_LEN = 8
 DML_HEADER_LEN = 2
+
+
+class Encoding:
+
+    def __init__(self, name) -> None:
+        self.name = name
+
+    @staticmethod
+    def from_xml_def(node: ElementTree.Element) -> Encoding:
+        pass
 
 
 class EncodingType(Enum):
@@ -87,6 +99,7 @@ class EncodingType(Enum):
         return f"<EncodingType.{self.t_name}>"
 
 
+
 class BytestreamReader:
     """Wrapper of BufferedReader used to simplify reading bytestrings
     into their standard type value. Accepts any EncodingType not prefaced
@@ -94,7 +107,7 @@ class BytestreamReader:
     case.
     """
 
-    object_property_serde = None
+    object_property_serde: BinarySerializer = None
 
     def __init__(self, bites: bytes, type_file: PathLike = None) -> None:
         """Initializes a BytestreamReader with a bytestring
@@ -164,14 +177,14 @@ class BytestreamReader:
     def __property_object_str_read(self, peek=False):
         bytes = self.__str_read(peek=peek, decode=False)
         if BytestreamReader.object_property_serde:
-            return BytestreamReader.object_property_serde.deserialize(bytes)
-        return bytes
-
-    
-    def __property_object_wstr_read(self, peek=False):
-        bytes = self.__wstr_read(peek=peek, decode=False)
-        if BytestreamReader.object_property_serde:
-            return BytestreamReader.object_property_serde.deserialize(bytes)
+            for flags in range(pow(2, 5)):
+                BytestreamReader.object_property_serde.serializer_flags = flags
+                try:
+                    obj = BytestreamReader.object_property_serde.deserialize(bytes)
+                    if obj and len(obj.items()) > 0:
+                        return obj
+                except:
+                    next
         return bytes
         
 
@@ -191,7 +204,7 @@ class BytestreamReader:
         if enc_type is EncodingType.STR:
             return self.__str_read(peek)
         elif enc_type is EncodingType.OBJSTR:
-            return 
+            return self.__property_object_str_read(peek)
         elif enc_type is EncodingType.WSTR:
             return self.__wstr_read(peek)
         else:

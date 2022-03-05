@@ -15,6 +15,18 @@ from moonlight.ki.dml import DMLProtocol
 from .net_common import *
 
 
+# class KIStreamReaderTo:
+#     def __init__(
+#         self,
+#         msg_def_folder: PathLike = os.path.join(
+#             os.path.dirname(__file__), "..", "..", "res", "dml", "messages"
+#         ),
+#         typedef_file: PathLike = None,
+#         pcap_file: PathLike = None,
+#     ) -> None:
+
+
+
 class KIStreamReader:
     def __init__(
         self,
@@ -42,7 +54,7 @@ class KIStreamReader:
 
         # Load control decoder
         self.control_decoder: ControlProtocol = ControlProtocol()
-        BytestreamReader(bites="", type_file="")
+        BytestreamReader(bites="", type_file=typedef_file)
 
     def __iter__(self):
         return self
