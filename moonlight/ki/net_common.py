@@ -1,38 +1,25 @@
 from __future__ import annotations
+from typing_extensions import Self
 """
     Shared stuff between the KI network protocol
 """
 
 from enum import Enum
-from io import BufferedReader
+from io import BufferedReader, BytesIO
 import io
-import logging
 from os import PathLike, read
 import struct
-from xml.etree import ElementTree
-from typing import Any, ByteString, List, NewType, Optional, Union
-from printrospector import BinarySerializer, TypeCache
-from moonlight.ki.object_property import build_property_object_serde
+from typing import Any, Union
+from printrospector import BinarySerializer
 
-KI_HEADER_LEN = 8
+HEADER_LEN = 8
 DML_HEADER_LEN = 2
 
-
-class Encoding:
-
-    def __init__(self, name) -> None:
-        self.name = name
-
-    @staticmethod
-    def from_xml_def(node: ElementTree.Element) -> Encoding:
-        pass
-
-
-class EncodingType(Enum):
-    """Bit encodings used by the KI network protocol.
+class DMLType(Enum):
+    """Bit types used by the KI network protocol.
 
     Args:
-        t_name (str): Name used in encodings. Same as the enum names.
+        name (str): Name used in encodings. Same as the enum names.
         len (int): Number of bytes used in the initial read for the field.
                    For an encoding of a set length, this is the entire
                    length of the field. For encodings that start with
@@ -66,82 +53,79 @@ class EncodingType(Enum):
     USHRT = ("USHRT", 2, "<H")  # uint16
     INT = ("INT", 4, "<i")  # int32
     UINT = ("UINT", 4, "<I")  # uint32
+    FLT = ("FLT", 4, "<f")  # float32
+    DBL = ("DBL", 8, "<d")  # float64
+    GID = ("GID", 8, "<q")  # uint64
+    # uint16 length definition followed by utf8
     STR = (
         "STR",
         2,
         "<H",
-    )  # uint16 length definition followed by utf8
-    OBJSTR = (
-        "OBJSTR",
+    )
+    # uint16 length definition followed by utf8 encoding a PropertyObject
+    PO_STR = (
+        "PO_STR",
         2,
         "<H",
-    )  # uint16 length definition followed by utf8 encoding a PropertyObject
-    WSTR = ("WSTR", 2, "<H")  # uint16 length definition followed by utf16 LE
-    OBJWSTR = ("OBJWSTR", 2, "<H")  # uint16 length definition followed by utf16 LE encoding a PropertyObject
-    FLT = ("FLT", 4, "<f")  # float32
-    DBL = ("DBL", 8, "<d")  # float64
-    GID = ("GID", 8, "<q")  # uint64
+    )
+    # uint16 length definition followed by utf16 LE
+    WSTR = ("WSTR", 2, "<H")
+    # uint16 length definition followed by utf16 LE encoding a PropertyObject
+    PO_WSTR = ("PO_WSTR", 2, "<H")  
+
 
     def __init__(self, t_name, len, struct_code):
         self.t_name = t_name
         self.len = len
         self.struct_code = struct_code
 
-    def from_str(name):
-        for type in EncodingType:
-            if type.t_name == name:
+    def from_str(t_name):
+        for type in DMLType:
+            if type.t_name == t_name:
                 return type
 
     def __str__(self):
         return self.t_name
 
     def __repr__(self) -> str:
-        return f"<EncodingType.{self.t_name}>"
-
+        return f"<DMLType.{self.t_name}>"
 
 
 class BytestreamReader:
     """Wrapper of BufferedReader used to simplify reading bytestrings
-    into their standard type value. Accepts any EncodingType not prefaced
+    into their standard type value. Accepts any DMLType not prefaced
     with a length. Otherwise, you'll need to modify this as a special
     case.
     """
-
-    object_property_serde: BinarySerializer = None
-
-    def __init__(self, bites: bytes, type_file: PathLike = None) -> None:
+    def __init__(self, bites: bytes) -> None:
         """Initializes a BytestreamReader with a bytestring
 
         Args:
             bites ([bytes]): [bytestring to read]
         """
-        self.stream = BufferedReader(io.BytesIO(bites))
-        if not BytestreamReader.object_property_serde and type_file:
-            BytestreamReader.object_property_serde = build_property_object_serde(type_file)
+        self.stream = BytesIO(bites)
 
 
-
-    def read_raw(self, len: int, peek=False) -> bytes:
-        """Reads the given number of bytes off the string, peeking+truncate
-        if requested
+    def read_raw(self, length, peek=False) -> bytes:
+        """Reads the given number of bytes off the string
 
         Args:
-            len (int): number of bytes to read
+            length (int): number of bytes to read. If not provided, reads all.
             peek (bool, optional): True if reading leaves the bytes in
               the buffer. Defaults to False.
         """
         if peek:
-            return self.stream.peek(len)
+            return self.__peek_stream(length)
         else:
-            return self.stream.read(len)
+            return self.stream.read(length)
 
-    def __simple_read(self, enc_type: EncodingType, peek=False) -> Any:
+    def __simple_read(self, dml_type: DMLType, peek=False) -> Any:
         """
-        __simple_read reads EncodingTypes that are always the same size and
+        __simple_read reads DMLTypes that are always the same size and
         can be unpacked using the python struct module.
 
         Args:
-            enc_type (EncodingType): The EncodingType to read in
+            dml_type (DMLType): The DMLType to read in
             peek (bool, optional): True if reading leaves the bytes in
               the buffer. Defaults to False.
 
@@ -150,22 +134,32 @@ class BytestreamReader:
               a length-prefixed string STR or WSTR)
 
         Returns:
-            Any: the given EncodingType's python representation
+            Any: the given DMLType's python representation
         """
-        if enc_type in [EncodingType.STR, EncodingType.WSTR, EncodingType.OBJSTR, EncodingType.WSTR]:
+        if dml_type in [DMLType.STR, DMLType.WSTR, DMLType.PO_STR, DMLType.PO_WSTR]:
             raise ValueError("Known special case. Cannot be read simply.")
         raw_bytes = None
         if peek:
-            raw_bytes = self.stream.peek(enc_type.len)[: enc_type.len]
+            raw_bytes = self.__peek_stream(dml_type.len)[: dml_type.len]
         else:
-            raw_bytes = self.stream.read(enc_type.len)
+            raw_bytes = self.stream.read(dml_type.len)
 
-        unpacked_repr = struct.unpack(enc_type.struct_code, raw_bytes)
+        unpacked_repr = struct.unpack(dml_type.struct_code, raw_bytes)
         return unpacked_repr[0]
+
+    # FIXME: Hack until https://github.com/python/cpython/pull/30808/files
+    # is merged
+    def __peek_stream(self, size=-1):
+        pos = self.stream.tell()
+        if size == 0:
+            size = -1
+        b = self.stream.read(size)
+        self.stream.seek(pos)
+        return b
 
     # FIXME peek doesn't work on strings
     def __str_read(self, peek=False, decode: bool = True):
-        str_len = self.__simple_read(EncodingType.USHRT, peek=peek)
+        str_len = self.__simple_read(DMLType.USHRT, peek=peek)
         bytes = self.stream.read(str_len)
         if not decode:
             return bytes
@@ -174,73 +168,62 @@ class BytestreamReader:
         except:
             return bytes
 
-    def __property_object_str_read(self, peek=False):
-        bytes = self.__str_read(peek=peek, decode=False)
-        if BytestreamReader.object_property_serde:
-            for flags in range(pow(2, 5)):
-                BytestreamReader.object_property_serde.serializer_flags = flags
-                try:
-                    obj = BytestreamReader.object_property_serde.deserialize(bytes)
-                    if obj and len(obj.items()) > 0:
-                        return obj
-                except:
-                    next
-        return bytes
+
         
 
 
     def __wstr_read(self, peek=False):
-        str_len = self.__simple_read(EncodingType.USHRT, peek=peek)
+        str_len = self.__simple_read(DMLType.USHRT, peek=peek)
         bytes = self.stream.read(str_len)
         try:
             return bytes.decode("utf-16-le")
         except:
             return bytes
 
-    def advance(self, num_of_bytes):
+    def advance(self, num_of_bytes: int):
         self.stream.read(num_of_bytes)
 
-    def read(self, enc_type, peek=False):
-        if enc_type is EncodingType.STR:
+    def read(self, dml_type: DMLType, peek=False):
+        if dml_type is DMLType.STR:
             return self.__str_read(peek)
-        elif enc_type is EncodingType.OBJSTR:
-            return self.__property_object_str_read(peek)
-        elif enc_type is EncodingType.WSTR:
+        elif dml_type is DMLType.PO_STR:
+            return self.__str_read(peek)
+        elif dml_type is DMLType.WSTR:
             return self.__wstr_read(peek)
         else:
-            return self.__simple_read(enc_type, peek)
+            return self.__simple_read(dml_type, peek)
 
     def peek(self, enc_type):
         return self.read(enc_type, peek=True)
 
     def __str__(self):
-        return f"BytestreamReader(UINT8: {self.read(EncodingType.UINT8, peek=True)}, UINT16: {self.read(EncodingType.UINT16, peek=True)}, BYT: {hex(self.read(EncodingType.BYT, peek=True))})"
+        return f"BytestreamReader(UINT8: {self.read(DMLType.UINT8, peek=True)}, UINT16: {self.read(DMLType.UINT16, peek=True)}, BYT: {hex(self.read(DMLType.BYT, peek=True))})"
 
     def __repr__(self) -> str:
         return self.__str__()
 
 
-class KIMessage:
-    def __init__(self, protocol_class, original_bytes: ByteString = None) -> None:
+class BaseMessage:
+    def __init__(self, protocol_class, original_bytes: bytes = None) -> None:
         self.protocol_class = protocol_class
         self.original_bytes = original_bytes
 
 
-class KIPacketHeader:
-    def __init__(self, reader: BytestreamReader) -> None:
-        if type(reader) == bytes:
-            reader = BytestreamReader(reader)
+class PacketHeader:
+    def __init__(self, buffer: BytesIO | bytes) -> None:
+        if type(buffer) == bytes:
+            buffer = BytesIO(buffer)
         # validate content
-        food = reader.read(EncodingType.UINT16)
-        self.content_len = reader.read(EncodingType.UINT16)
-        self.content_is_control = reader.read(EncodingType.UINT8)
-        self.control_opcode = reader.read(EncodingType.UINT8)
-        self.mystery_bytes = reader.read(EncodingType.UINT16)
+        food = buffer.read(DMLType.UINT16)
+        self.content_len = buffer.read(DMLType.UINT16)
+        self.content_is_control = buffer.read(DMLType.UINT8)
+        self.control_opcode = buffer.read(DMLType.UINT8)
+        self.mystery_bytes = buffer.read(DMLType.UINT16)
         if food != 0xF00D:
             raise ValueError("Not a KI game protocol packet. F00D missing.")
 
 
-class KIMessageDecoder:
+class BaseMessageDecoder:
     """
     Notice: this is an abstract class and must be implemented by another.
 
@@ -259,7 +242,7 @@ class KIMessageDecoder:
 
     def decode_message(
         self, reader: Union[BytestreamReader, bytes], **kwargs
-    ) -> KIMessage:
+    ) -> BaseMessage:
         """
         decode_message Decodes a KI message (missing protocol context)
 
@@ -275,7 +258,7 @@ class KIMessageDecoder:
         raise NotImplementedError()
 
 
-class KIMessageProtocol:
+class MessageProtocol:
     """
     Notice: this is an abstract class and must be implemented by another.
 
@@ -287,11 +270,11 @@ class KIMessageProtocol:
 
     def decode_packet(
         self,
-        reader: Union[BytestreamReader, bytes],
-        header: KIPacketHeader,
+        reader: BytestreamReader | bytes,
+        header: PacketHeader,
         original_data: bytes = None,
         **kwargs,
-    ) -> KIMessage:
+    ) -> BaseMessage:
         """
         decode_packet Decodes a KI packet from the implementing protocol
         returning a KI message implementation

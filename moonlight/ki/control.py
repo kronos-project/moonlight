@@ -16,14 +16,14 @@ def _unpack_weirdo_timestamp(reader: BytestreamReader):
     return struct.unpack("<Q", bitstring)[0]
 
 
-class ControlMessage(KIMessage):
+class ControlMessage(BaseMessage):
     OPCODE = None
 
     def __init__(self) -> None:
         pass
 
 
-class SessionOfferMessage(ControlMessage, KIMessageDecoder):
+class SessionOfferMessage(ControlMessage, BaseMessageDecoder):
     OPCODE = 0x0
 
     def __init__(
@@ -51,14 +51,14 @@ class SessionOfferMessage(ControlMessage, KIMessageDecoder):
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
         if has_ki_header:
-            reader.advance(KI_HEADER_LEN)
+            reader.advance(HEADER_LEN)
 
-        session_id = reader.read(EncodingType.UINT16)
+        session_id = reader.read(DMLType.UINT16)
         sec_timestamp = _unpack_weirdo_timestamp(reader)
-        millis_into_sec_timestamp = reader.read(EncodingType.UINT32)
-        signed_message_len = reader.read(EncodingType.UINT32)
+        millis_into_sec_timestamp = reader.read(DMLType.UINT32)
+        signed_message_len = reader.read(DMLType.UINT32)
         signed_message = reader.read_raw(signed_message_len)
-        reserved = reader.read(EncodingType.UBYT)
+        reserved = reader.read(DMLType.UBYT)
 
         return SessionOfferMessage(
             session_id=session_id,
@@ -70,7 +70,7 @@ class SessionOfferMessage(ControlMessage, KIMessageDecoder):
         )
 
 
-class SessionAcceptMessage(ControlMessage, KIMessageDecoder):
+class SessionAcceptMessage(ControlMessage, BaseMessageDecoder):
     OPCODE = 0x5
 
     def __init__(
@@ -100,15 +100,15 @@ class SessionAcceptMessage(ControlMessage, KIMessageDecoder):
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
         if has_ki_header:
-            reader.advance(KI_HEADER_LEN)
+            reader.advance(HEADER_LEN)
 
-        reserved_start = reader.read(EncodingType.UINT16)
+        reserved_start = reader.read(DMLType.UINT16)
         sec_timestamp = _unpack_weirdo_timestamp(reader)
-        millis_into_sec_timestamp = reader.read(EncodingType.UINT32)
-        session_id = reader.read(EncodingType.UINT16)
-        signed_message_len = reader.read(EncodingType.UINT32)
+        millis_into_sec_timestamp = reader.read(DMLType.UINT32)
+        session_id = reader.read(DMLType.UINT16)
+        signed_message_len = reader.read(DMLType.UINT32)
         signed_message = reader.read_raw(signed_message_len)
-        reserved_end = reader.read(EncodingType.UBYT)
+        reserved_end = reader.read(DMLType.UBYT)
 
         return SessionAcceptMessage(
             reserved_start=reserved_start,
@@ -121,7 +121,7 @@ class SessionAcceptMessage(ControlMessage, KIMessageDecoder):
         )
 
 
-class KeepAliveMessage(ControlMessage, KIMessageDecoder):
+class KeepAliveMessage(ControlMessage, BaseMessageDecoder):
     OPCODE = 0x3
 
     def __init__(
@@ -143,11 +143,11 @@ class KeepAliveMessage(ControlMessage, KIMessageDecoder):
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
         if has_ki_header:
-            reader.advance(KI_HEADER_LEN)
+            reader.advance(HEADER_LEN)
 
-        session_id = reader.read(EncodingType.UINT16)
-        session_age_min = reader.read(EncodingType.UINT32)
-        millis_into_sec_timestamp = reader.read(EncodingType.UINT32)
+        session_id = reader.read(DMLType.UINT16)
+        session_age_min = reader.read(DMLType.UINT32)
+        millis_into_sec_timestamp = reader.read(DMLType.UINT32)
 
         return KeepAliveMessage(
             session_id=session_id,
@@ -182,11 +182,11 @@ class KeepAliveResponseMessage(KeepAliveMessage):
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
         if has_ki_header:
-            reader.advance(KI_HEADER_LEN)
+            reader.advance(HEADER_LEN)
 
-        session_id = reader.read(EncodingType.UINT16)
-        session_age_min = reader.read(EncodingType.UINT32)
-        millis_into_sec_timestamp = reader.read(EncodingType.UINT32)
+        session_id = reader.read(DMLType.UINT16)
+        session_age_min = reader.read(DMLType.UINT32)
+        millis_into_sec_timestamp = reader.read(DMLType.UINT32)
 
         return KeepAliveResponseMessage(
             session_id=session_id,
@@ -195,14 +195,14 @@ class KeepAliveResponseMessage(KeepAliveMessage):
         )
 
 
-class ControlProtocol(KIMessageProtocol):
+class ControlProtocol(MessageProtocol):
     def decode_packet(
         self,
         reader: Union[BytestreamReader, bytes],
-        header: KIPacketHeader,
+        header: PacketHeader,
         original_data: bytes = None,
         **kwargs,
-    ) -> KIMessage:
+    ) -> BaseMessage:
         if not header.content_is_control:
             return None
         opcode = header.control_opcode

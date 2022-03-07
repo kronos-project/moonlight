@@ -2,50 +2,40 @@ import json
 from os import PathLike
 from typing_extensions import Self
 from printrospector import BinarySerializer, TypeCache
-
-class ObjectPropertyDecoderMixin:
-    pass
-
-def build_property_object_serde(typefile: PathLike, flags=0, exhaustive=False):
-    with open(typefile, encoding="utf-8") as f:
-        type_cache = TypeCache(json.load(f))
-
-    return BinarySerializer(type_cache, flags, exhaustive)
+from copy import copy
 
 
-    # class PropertyObjectSerdeChain:
-    #     def __init__(self, type_cache, flags, exhaustive) -> None:
-    #         self.type_cache = type_cache
-    #         self.flags = flags
-    #         self.exhaustive = exhaustive
-        
-    #     def with_flags(self, flags) -> Self:
-    #         self.flags = flags
-    #         return self
-        
-    #     def with_exhaustive(self, exhaustive) -> Self:
-    #         self.exhaustive = exhaustive
-    #         return self
-        
-    #     def deserialize(self, data: bytes):
-    #         return BinarySerializer(self.type_cache, self.flags, self.exhaustive)
-
+class ObjectPropertyDecoder:
     
+    def __init__(
+        self,
+        typedef_path: PathLike,
+        flags: int,
+        exhaustive: bool,
+        property_mask: int = 24,
+    ) -> None:
+        self.property_mask = property_mask
+        self.flags = flags
+        self.exhaustive = exhaustive
+        self.reload_typedefs(typedef_path)
 
-    
-        
-        
+    def reload_typedefs(self, typedef_path: PathLike):
+        self.__typedef_path = typedef_path
+        with open(self.__typedef_path, encoding="utf-8") as f:
+            self.type_cache = TypeCache(json.load(f))
+        self.serializer = BinarySerializer(self.type_cache, self.flags, self.exhaustive)
 
-# # First, we need a type cache so that printrospector learns the types it may encounter.
-# with open("path/to/types.json", encoding="utf-8") as f:
-#     type_cache = TypeCache(json.load(f))
+    def deserialize(self, property_mask):
+        return self.serializer.deserialize(self.bites, property_mask=property_mask)
 
-# # Construct a new serializer instance in primitive mode without any flags.
-# # We give it the previously crafted type_cache for identification of objects.
-# serializer = BinarySerializer(type_cache, 0, False)
-
-# # Now we can deserialize our character creation data.
-# char = serializer.deserialize(ZORA_TIGERWALD)
-
-# # The resulting object behaves very much like a dictionary:
-# assert char["m_templateID"] == 1
+    def brute_force(self, bites: bytes):
+        serializer_clone = copy(self.serializer)
+        for flags in range(pow(2, 5)):
+            serializer_clone.serializer_flags = flags
+            try:
+                obj = serializer_clone.deserialize(bites, self.property_mask)
+                if obj and len(obj.items()) > 0:
+                    return obj
+            except:
+                next
+        return None

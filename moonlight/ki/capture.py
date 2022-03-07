@@ -7,7 +7,7 @@ import os
 import traceback
 
 from moonlight.ki.framing import KIStreamReader
-from .dml import DMLProtocol, DMLMessageObject
+from .dml import DMLProtocol, DMLMessage
 import sys
 from scapy.all import IP, TCP
 from scapy.packet import NoPayload, Packet, Raw

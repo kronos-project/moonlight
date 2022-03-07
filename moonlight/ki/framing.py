@@ -3,6 +3,7 @@
     KI protocol wrapper.
 """
 
+import logging
 import os.path
 from os import PathLike
 from os.path import isfile, listdir, join
@@ -61,14 +62,14 @@ class KIStreamReader:
 
     def decode_packet(
         self, reader: BytestreamReader, original_data: bytes = None, **kwargs
-    ) -> KIMessage:
+    ) -> BaseMessage:
         reader = None
         header = None
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
 
         try:
-            header = KIPacketHeader(reader)
+            header = PacketHeader(reader)
         except ValueError:
             logging.debug("Invalid packet received: bad KI header")
             return None

@@ -1,6 +1,6 @@
 import pytest
 from moonlight.ki.control import ControlMessage, ControlProtocol
-from moonlight.ki.net_common import BytestreamReader, KIPacketHeader
+from moonlight.ki.net_common import BytestreamReader, PacketHeader
 from .fixtures import *
 
 
@@ -11,7 +11,7 @@ def control_protocol():
 
 def test_session_offer(control_protocol, control_session_offer):
     reader = BytestreamReader(control_session_offer)
-    header = KIPacketHeader(reader)
+    header = PacketHeader(reader)
     message = control_protocol.decode_packet(reader, header)
     assert message.OPCODE == 0
     assert message.reserved == 0
@@ -42,7 +42,7 @@ def test_session_offer(control_protocol, control_session_offer):
 
 def test_session_accept(control_protocol, control_session_accept):
     reader = BytestreamReader(control_session_accept)
-    header = KIPacketHeader(reader)
+    header = PacketHeader(reader)
     message = control_protocol.decode_packet(reader, header)
     assert message.OPCODE == 5
     assert message.reserved_start == 0
