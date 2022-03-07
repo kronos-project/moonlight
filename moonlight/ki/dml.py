@@ -329,8 +329,7 @@ class DMLProtocol(MessageProtocol):
             reader.advance(HEADER_LEN)
         service_id = reader.peek(DMLType.UBYT)
         if service_id not in self.protocol_map:
-            logging.warn(f"unknown dml protocol: {service_id}")
-            return None  # implement custom exception
+            raise ValueError(f"unknown dml protocol: {service_id}")
         return self.protocol_map[service_id].decode_dml_service(
             reader, has_service_id=True
         )
