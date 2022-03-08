@@ -14,7 +14,6 @@ from moonlight.ki.net_common import (
     BytestreamReader,
     DMLType,
     MessageProtocol,
-    PacketHeader,
 )
 from .object_property import ObjectPropertyDecoder
 
@@ -29,12 +28,13 @@ class Field(ObjectPropertyDecoder):
         text: str,
         property_object_flags,
         property_object_mask,
-        property_object_exhausitve,
+        property_object_exhaustive,
         noxfer,
     ) -> None:
         self.name = name
         self.text = text
-        self.property_obj_flags
+        super.__init__()
+        self.property_obj_flags = 
         self.property_object_mask
         self.property_obj_exhaustive
         self.noxfer
@@ -63,7 +63,7 @@ class DMLMessage(BaseMessage):
         msg_desc: str = None,
         source: str = None,
     ):
-        super(DMLService)
+        super.__init__(DMLService)
         self.fields = fields
         self.protocol_id = protocol_id
         self.protocol_desc = protocol_desc
