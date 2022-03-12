@@ -51,7 +51,7 @@ class SessionOfferMessage(ControlMessage, BaseMessageDecoder):
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
         if has_ki_header:
-            reader.advance(HEADER_LEN)
+            reader.advance(PACKET_HEADER_LEN)
 
         session_id = reader.read(DMLType.UINT16)
         sec_timestamp = _unpack_weirdo_timestamp(reader)
@@ -100,7 +100,7 @@ class SessionAcceptMessage(ControlMessage, BaseMessageDecoder):
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
         if has_ki_header:
-            reader.advance(HEADER_LEN)
+            reader.advance(PACKET_HEADER_LEN)
 
         reserved_start = reader.read(DMLType.UINT16)
         sec_timestamp = _unpack_weirdo_timestamp(reader)
@@ -143,7 +143,7 @@ class KeepAliveMessage(ControlMessage, BaseMessageDecoder):
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
         if has_ki_header:
-            reader.advance(HEADER_LEN)
+            reader.advance(PACKET_HEADER_LEN)
 
         session_id = reader.read(DMLType.UINT16)
         session_age_min = reader.read(DMLType.UINT32)
@@ -182,7 +182,7 @@ class KeepAliveResponseMessage(KeepAliveMessage):
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
         if has_ki_header:
-            reader.advance(HEADER_LEN)
+            reader.advance(PACKET_HEADER_LEN)
 
         session_id = reader.read(DMLType.UINT16)
         session_age_min = reader.read(DMLType.UINT32)

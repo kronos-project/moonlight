@@ -1,39 +1,37 @@
-from __future__ import annotations
-from typing_extensions import Self
 """
     Shared stuff between the KI network protocol
 """
 
-from enum import Enum
-from io import BufferedReader, BytesIO
-import io
-from os import PathLike, read
-import struct
-from typing import Any, Union
-from printrospector import BinarySerializer
+from __future__ import annotations
 
-HEADER_LEN = 8
+import struct
+from enum import Enum
+from io import BytesIO
+from typing import Any, Union
+
+PACKET_HEADER_LEN = 8
 DML_HEADER_LEN = 2
+
 
 class DMLType(Enum):
     """Bit types used by the KI network protocol.
 
     Args:
         name (str): Name used in encodings. Same as the enum names.
-        len (int): Number of bytes used in the initial read for the field.
-                   For an encoding of a set length, this is the entire
-                   length of the field. For encodings that start with
-                   a length byte(s), this is the length of the length
-                   field.
+        length (int): Number of bytes used in the initial read for the field.
+            For an encoding of a set length, this is the entire
+            length of the field. For encodings that start with
+            a length byte(s), this is the length of the length
+            field.
         struct_code (str): Format string for the python struct.unpack
-                           method that will take the initial read bytes
-                           and convert them into the python type.
-                           For an encoding of a set length, this initial
-                           read is the entire length of the field. For
-                           encodings that start with a length byte(s),
-                           this is the unpack code of that byte(s). The
-                           remainder is handled by the BytestreamReader
-                           as a special case.
+            method that will take the initial read bytes
+            and convert them into the python type.
+            For an encoding of a set length, this initial
+            read is the entire length of the field. For
+            encodings that start with a length byte(s),
+            this is the unpack code of that byte(s). The
+            remainder is handled by the BytestreamReader
+            as a special case.
     """
 
     # Basic types
@@ -71,18 +69,28 @@ class DMLType(Enum):
     # uint16 length definition followed by utf16 LE
     WSTR = ("WSTR", 2, "<H")
     # uint16 length definition followed by utf16 LE encoding a PropertyObject
-    PO_WSTR = ("PO_WSTR", 2, "<H")  
+    PO_WSTR = ("PO_WSTR", 2, "<H")
 
-
-    def __init__(self, t_name, len, struct_code):
+    def __init__(self, t_name, length, struct_code):
         self.t_name = t_name
-        self.len = len
+        self.length = length
         self.struct_code = struct_code
 
-    def from_str(t_name):
-        for type in DMLType:
-            if type.t_name == t_name:
-                return type
+    @classmethod
+    def from_str(cls, t_name: str) -> DMLType | None:  # sourcery skip: use-next
+        """
+        from_str enum described by the given string or `None` if invalid
+
+        Args:
+            t_name (str): The enum's name.
+
+        Returns:
+            DMLType | None: enum described by the given string or `None` if invalid
+        """
+        for enum in cls:
+            if enum.t_name == t_name:
+                return enum
+        return None
 
     def __str__(self):
         return self.t_name
@@ -97,6 +105,7 @@ class BytestreamReader:
     with a length. Otherwise, you'll need to modify this as a special
     case.
     """
+
     def __init__(self, bites: bytes) -> None:
         """Initializes a BytestreamReader with a bytestring
 
@@ -104,7 +113,6 @@ class BytestreamReader:
             bites ([bytes]): [bytestring to read]
         """
         self.stream = BytesIO(bites)
-
 
     def read_raw(self, length, peek=False) -> bytes:
         """Reads the given number of bytes off the string
@@ -114,10 +122,10 @@ class BytestreamReader:
             peek (bool, optional): True if reading leaves the bytes in
               the buffer. Defaults to False.
         """
+
         if peek:
             return self.__peek_stream(length)
-        else:
-            return self.stream.read(length)
+        return self.stream.read(length)
 
     def __simple_read(self, dml_type: DMLType, peek=False) -> Any:
         """
@@ -140,9 +148,9 @@ class BytestreamReader:
             raise ValueError("Known special case. Cannot be read simply.")
         raw_bytes = None
         if peek:
-            raw_bytes = self.__peek_stream(dml_type.len)[: dml_type.len]
+            raw_bytes = self.__peek_stream(dml_type.length)[: dml_type.length]
         else:
-            raw_bytes = self.stream.read(dml_type.len)
+            raw_bytes = self.stream.read(dml_type.length)
 
         unpacked_repr = struct.unpack(dml_type.struct_code, raw_bytes)
         return unpacked_repr[0]
@@ -158,42 +166,65 @@ class BytestreamReader:
         return b
 
     # FIXME peek doesn't work on strings
+    # FIXME refactor to just return bytes. Most things dont use strings
     def __str_read(self, peek=False, decode: bool = True):
         str_len = self.__simple_read(DMLType.USHRT, peek=peek)
-        bytes = self.stream.read(str_len)
+        bites = self.stream.read(str_len)
         if not decode:
-            return bytes
+            return bites
         try:
             return bytes.decode("utf-8")
-        except:
+        except:  # pylint: disable=bare-except
             return bytes
 
-
-        
-
-
+    # TODO: this is a weird scenario. Is it always text? Binary?
     def __wstr_read(self, peek=False):
         str_len = self.__simple_read(DMLType.USHRT, peek=peek)
-        bytes = self.stream.read(str_len)
+        bites = self.stream.read(str_len)
         try:
             return bytes.decode("utf-16-le")
-        except:
-            return bytes
+        except:  # pylint: disable=bare-except
+            return bites
 
-    def advance(self, num_of_bytes: int):
-        self.stream.read(num_of_bytes)
+    def advance(self, length: int):
+        """
+        advance advances the internal stream by `length` bytes
 
-    def read(self, dml_type: DMLType, peek=False):
+        Args:
+            length (int): number of bytes to advance
+        """
+
+        self.stream.read(length)
+
+    def read(self, dml_type: DMLType, peek: bool = False):
+        """
+        read reads a `DMLType` from the stream
+
+        Args:
+            dml_type (DMLType): Expected `DMLType` of the field
+            peek (bool, optional): True if reading does not advance the reading head. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
+
         if dml_type is DMLType.STR:
             return self.__str_read(peek)
-        elif dml_type is DMLType.PO_STR:
-            return self.__str_read(peek)
-        elif dml_type is DMLType.WSTR:
+        if dml_type is DMLType.WSTR:
             return self.__wstr_read(peek)
-        else:
-            return self.__simple_read(dml_type, peek)
+        return self.__simple_read(dml_type, peek)
 
-    def peek(self, enc_type):
+    def peek(self, enc_type: DMLType):
+        """
+        peek reads a `DMLType` from the stream, not advancing the head.
+
+        Args:
+            enc_type (DMLType): Expected `DMLType` of the field
+
+        Returns:
+            _type_: _description_
+        """
+
         return self.read(enc_type, peek=True)
 
     def __str__(self):

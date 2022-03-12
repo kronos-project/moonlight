@@ -4,9 +4,10 @@ Object property parsing things
 
 import json
 from copy import copy
+import logging
 from os import PathLike
 
-from printrospector import BinarySerializer, TypeCache, DynamicObject
+from printrospector import BinarySerializer, DynamicObject, TypeCache
 
 
 class ObjectPropertyDecoder:
@@ -15,26 +16,38 @@ class ObjectPropertyDecoder:
     managing both a serializer and typedef cache
     """
 
-    def __init__(
+    #
+    def __init__(  # pylint: disable=too-many-arguments
         self,
-        typedef_path: PathLike,
         flags: int,
         exhaustive: bool,
         property_mask: int = 24,
+        typedef_path: PathLike | None = None,
+        type_cache: TypeCache | None = None,
     ) -> None:
         """
         Args:
-            typedef_path (PathLike): Path to wizwalker typedefs json
+            type_cache (TypeCache, optional): Pre-existing loaded typecache.
+                Takes precedence over `typedef_path` if both are provided.
             flags (int): Serialization flags for the target property object
             exhaustive (bool): Property object is in exhaustive mode
             property_mask (int, optional): Field mask for the target property object.
                 Defaults to 24.
+            typedef_path (PathLike, optional): Path to wizwalker typedefs json
         """
 
         self.property_mask = property_mask
         self.flags = flags
         self.exhaustive = exhaustive
-        self.load_typedefs(typedef_path)
+        self.__typedef_path = typedef_path
+        self.type_cache = type_cache
+        if type_cache and typedef_path:
+            logging.warning(
+                "Both TypeCache and path to typedef.json were "
+                "provided to field. Using provided TypeCache first."
+            )
+        elif typedef_path:
+            self.load_typedefs(typedef_path)
 
     def load_typedefs(self, typedef_path: PathLike):
         """
@@ -60,6 +73,7 @@ class ObjectPropertyDecoder:
         Returns:
             DynamicObject | None: deserialized property object or None if failed
         """
+
         return self.serializer.deserialize(bites, property_mask=self.property_mask)
 
     def brute_force(self, bites: bytes) -> DynamicObject | None:
@@ -73,6 +87,7 @@ class ObjectPropertyDecoder:
         Returns:
             DynamicObject | None: deserialized property object if successful, otherwise None
         """
+
         serializer_clone = copy(self.serializer)
         for flags in range(pow(2, 5)):
             serializer_clone.serializer_flags = flags

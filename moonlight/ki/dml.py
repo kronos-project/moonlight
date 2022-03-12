@@ -1,3 +1,7 @@
+"""
+Parser for DML message definitions and parsing messages based on them
+"""
+
 from __future__ import annotations
 
 import logging
@@ -6,35 +10,40 @@ from collections import namedtuple
 from os import PathLike
 from typing import Dict, List, Union
 
+from printrospector.type_cache import TypeCache
+
 from moonlight.ki.net_common import (
     DML_HEADER_LEN,
-    HEADER_LEN,
+    PACKET_HEADER_LEN,
     BaseMessage,
     BaseMessageDecoder,
     BytestreamReader,
     DMLType,
     MessageProtocol,
 )
+
 from .object_property import ObjectPropertyDecoder
 
 SERVICE_ID_SIZE = 1
 MESSAGE_ID_SIZE = 1
 
 
-class Field(ObjectPropertyDecoder):
+class Field:
     def __init__(
         self,
         name: str,
         text: str,
-        property_object_flags,
-        property_object_mask,
-        property_object_exhaustive,
-        noxfer,
+        property_object_flags: int,
+        property_object_mask: int,
+        property_object_exhaustive: bool,
+        property_object_typedef_path: PathLike | None,
+        property_object_typecache: TypeCache | None,
+        noxfer: bool,
     ) -> None:
         self.name = name
         self.text = text
-        super.__init__()
-        self.property_obj_flags = 
+        self.po_decoder = ObjectPropertyDecoder()
+        self.property_obj_flags = property_object_flags
         self.property_object_mask
         self.property_obj_exhaustive
         self.noxfer
@@ -160,7 +169,7 @@ class DMLMessageDef(BaseMessageDecoder):
     ) -> DMLMessage:
         if has_ki_header:
             # advance past ki header and message header
-            reader.advance(HEADER_LEN)
+            reader.advance(PACKET_HEADER_LEN)
         elif has_dml_header:
             reader.advance(DML_HEADER_LEN)
 
@@ -193,11 +202,10 @@ class DMLMessageDef(BaseMessageDecoder):
         # sort on the order number, or definition name if undefined
         # FIXME: is there a case where both are given?
         def msg_key(msg):
-            if msg.order is None:
-                assert msg.name
-                return msg.name
-            else:
+            if msg.order is not None:
                 return msg.order
+            assert msg.name
+            return msg.name
 
         # sort and assign ids based on ordinal (ASCII chart) order
         defs.sort(key=msg_key)
@@ -326,7 +334,7 @@ class DMLProtocol(MessageProtocol):
         if type(reader) == bytes:
             reader = BytestreamReader(reader)
         if has_ki_header:
-            reader.advance(HEADER_LEN)
+            reader.advance(PACKET_HEADER_LEN)
         service_id = reader.peek(DMLType.UBYT)
         if service_id not in self.protocol_map:
             raise ValueError(f"unknown dml protocol: {service_id}")
