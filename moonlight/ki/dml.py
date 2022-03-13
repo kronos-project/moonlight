@@ -8,8 +8,9 @@ import logging
 import xml.etree.ElementTree
 from collections import namedtuple
 from os import PathLike
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 
+from printrospector.object import DynamicObject
 from printrospector.type_cache import TypeCache
 
 from moonlight.ki.net_common import (
@@ -28,37 +29,140 @@ SERVICE_ID_SIZE = 1
 MESSAGE_ID_SIZE = 1
 
 
-class Field:
-    def __init__(
+class FieldDef:
+    """
+    Definition of a DML field within a message. Used to hold the represented
+    xml from message definition files as well as property object decoding
+    information.
+    """
+
+    # FIXME reduce number of fields. It's okay for now since this isn't
+    # part of the public api.
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         name: str,
         text: str,
-        property_object_flags: int,
-        property_object_mask: int,
-        property_object_exhaustive: bool,
-        property_object_typedef_path: PathLike | None,
-        property_object_typecache: TypeCache | None,
-        noxfer: bool,
+        dml_type: DMLType,
+        property_object_flags: int | None = None,
+        property_object_mask: int | None = None,
+        property_object_exhaustive: bool | None = None,
+        noxfer: bool | None = None,
+        property_object_typedef_path: PathLike | None = None,
+        property_object_typecache: TypeCache | None = None,
     ) -> None:
         self.name = name
         self.text = text
-        self.po_decoder = ObjectPropertyDecoder()
-        self.property_obj_flags = property_object_flags
-        self.property_object_mask
-        self.property_obj_exhaustive
-        self.noxfer
+        self.dml_type = dml_type
+        self.po_decoder = ObjectPropertyDecoder(
+            typedef_path=property_object_typedef_path,
+            type_cache=property_object_typecache,
+            flags=property_object_flags,
+            property_mask=property_object_mask,
+            exhaustive=property_object_exhaustive,
+        )
+        self.noxfer = noxfer
 
-    @staticmethod
-    def from_xml(node: xml.etree.ElementTree.Element) -> Field:
-        return Field(
+    def is_property_object(self) -> bool:
+        """
+        is_property_object returns `True` if the field describes a property object.
+            This is determined by the presence of the additional `property_object_...`
+            fields in the constructor having non-`None` values.
+
+        Returns:
+            bool: True if the field represents a property_object
+        """
+
+        return self.po_decoder.params_are_complete()
+
+    def can_decode_property_object(self) -> bool:
+        """
+        can_decode_property_object returns `True` if the internal decoder
+        is able to deserialize a property object represented by the field's
+        value. If the FieldDef does not represent a property object, this
+        returns `False`.
+
+        Returns:
+            bool: `True` if a property object can be decoded from a `Field`
+        """
+
+        return self.is_property_object() and self.po_decoder.can_deserialize()
+
+    def decode_represented_property_object(
+        self, field: "Field"
+    ) -> DynamicObject | None:
+        """
+        decode_represented_property_object decodes te corresponding `Field`'s
+            value into a property object if possible.
+
+        Args:
+            field (Field): message field instance
+
+        Raises:
+            ValueError: If this definition does not define a property object
+            AttributeError: If the provided `Field`'s value is not stored as bytes
+
+        Returns:
+            DynamicObject | None: property object if successfully decoded or
+                `None` if failed under some circumstances
+        """
+
+        if not self.can_decode_property_object():
+            raise ValueError("Does not define a property object")
+        if not isinstance(field.value, bytes):
+            raise AttributeError("Field value is not stored as bytes")
+
+        return self.po_decoder.deserialize(field.value)
+
+    # TODO: python 11, change to typing.Self
+    @classmethod
+    def from_xml(cls, node: xml.etree.ElementTree.Element) -> FieldDef:
+        """
+        from_xml generates a `FieldDef` representation of the message from
+            the message definition xml file
+
+        Args:
+            node (xml.etree.ElementTree.Element): xml message node (parent of
+                the RECORD tag)
+
+        Returns:
+            FieldDef: representation of the message definition xml
+        """
+
+        return cls(
             name=node.tag,
             text=(node.text or "").strip(),
-            type=DMLType.from_str(node.attrib.get("TYPE")),
-            property_obj_flags=DMLType.from_str(node.attrib.get("PO_FLAGS")),
-            property_obj_mask=node.attrib.get("PO_MASK"),
-            property_obj_exhaustive=node.attrib.get("PO_EXHAUSTIVE"),
-            noxfer=node.attrib.get("NOXFER") == "TRUE",
+            dml_type=DMLType.from_str(node.attrib.get("TYPE")),
+            property_object_flags=DMLType.from_str(node.attrib.get("PO_FLAGS")),
+            property_object_mask=node.attrib.get("PO_MASK"),
+            property_object_exhaustive=node.attrib.get("PO_EXHAUSTIVE"),
+            noxfer=(node.attrib.get("NOXFER") == "TRUE"),
         )
+
+
+class Field:
+    """
+    Specific instance of a DML field as defined by its `FieldDef`.
+
+    Fields representing object property objects are not automatically
+    unserialized. To get the represented property object, use `as_property_object`
+    """
+
+    def __init__(self, value: Any, field_def: FieldDef) -> None:
+        self.value = value
+        self.definition = field_def
+
+    def is_property_object(self) -> bool:
+        """
+        is_property_object alias for `Field#definition.is_property_object()`
+
+        Returns:
+            bool: `True` if the field describes a property object
+        """
+
+        self.definition.is_property_object()
+
+    def as_property_object(self):
+        return self.definition.decode_represented_property_object(field=self)
 
 
 class DMLMessage(BaseMessage):
@@ -182,7 +286,7 @@ class DMLMessageDef(BaseMessageDecoder):
         return DMLMessage(decoded_fields, msg_id=self.order, msg_desc=self.desc)
 
     def __str__(self) -> str:
-        return f"{self.id}: {self.name}"
+        return f"{self.order}: {self.name}"
 
     def __repr__(self) -> str:
         return f"""DMLMessageDef:
