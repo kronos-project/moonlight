@@ -9,7 +9,7 @@ from os import PathLike
 from os.path import isfile, listdir, join
 
 from scapy.utils import PcapReader
-from moonlight.ki.control import ControlDecoder, ControlProtocol
+from moonlight.ki.control import ControlProtocol
 
 from moonlight.ki.dml import DMLProtocol
 
@@ -55,18 +55,20 @@ class KIStreamReader:
 
         # Load control decoder
         self.control_decoder: ControlProtocol = ControlProtocol()
-        BytestreamReader(bites="", type_file=typedef_file)
+        BytestreamReader(bites="")
 
-    def __iter__(self):
-        return self
 
     def decode_packet(
-        self, reader: BytestreamReader, original_data: bytes = None, **kwargs
+        self, bites: BytestreamReader | bytes
     ) -> BaseMessage:
-        reader = None
+        bites = None
         header = None
-        if type(reader) == bytes:
-            reader = BytestreamReader(reader)
+        if isinstance(bites, bytes):
+            reader = BytestreamReader(bites)
+        elif isinstance(bites, BytestreamReader):
+            reader = bites
+        else:
+            raise ValueError("bites is not of type bytes of BytestreamReader")
 
         try:
             header = PacketHeader(reader)
@@ -76,5 +78,5 @@ class KIStreamReader:
 
         if header.content_is_control != 0:
             return self.control_decoder.decode_packet(reader, header)
-        else:
-            return self.dml_decoder.decode_packet(reader, header)
+        
+        return self.dml_decoder.decode_packet(reader, header)

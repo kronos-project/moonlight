@@ -3,6 +3,8 @@
 """
 
 from __future__ import annotations
+from abc import abstractmethod
+from dataclasses import dataclass
 
 import struct
 from enum import Enum
@@ -175,7 +177,7 @@ class BytestreamReader:
         try:
             return bytes.decode("utf-8")
         except:  # pylint: disable=bare-except
-            return bytes
+            return bites
 
     # TODO: this is a weird scenario. Is it always text? Binary?
     def __wstr_read(self, peek=False):
@@ -234,16 +236,32 @@ class BytestreamReader:
         return self.__str__()
 
 
+@dataclass
 class BaseMessage:
-    def __init__(self, protocol_class, original_bytes: bytes = None) -> None:
+    """
+     Dataclass intended to create an interface for different messages and
+     so that all bytes can be held onto.
+    """
+    def __init__(self, protocol_class: "MessageProtocol", original_bytes: bytes = None) -> None:
+        """
+        __init__
+
+        Args:
+            protocol_class (MessageProtocol): protocol of the message
+            original_bytes (bytes, optional): original bytes of the message. Defaults to None.
+        """
         self.protocol_class = protocol_class
         self.original_bytes = original_bytes
 
 
+@dataclass
 class PacketHeader:
+    """
+     Dataclass holding the KI packet header fields
+    """
     def __init__(self, buffer: BytesIO | bytes) -> None:
-        if type(buffer) == bytes:
-            buffer = BytesIO(buffer)
+        if isinstance(buffer, bytes):
+            buffer = BytestreamReader(buffer)
         # validate content
         food = buffer.read(DMLType.UINT16)
         self.content_len = buffer.read(DMLType.UINT16)
@@ -254,7 +272,7 @@ class PacketHeader:
             raise ValueError("Not a KI game protocol packet. F00D missing.")
 
 
-class BaseMessageDecoder:
+class BaseMessageDecoder: # pylint: disable=too-few-public-methods
     """
     Notice: this is an abstract class and must be implemented by another.
 
@@ -268,11 +286,9 @@ class BaseMessageDecoder:
         NotImplementedError: This is an abstract class
     """
 
-    def __init__(self) -> None:
-        pass
-
+    @abstractmethod
     def decode_message(
-        self, reader: Union[BytestreamReader, bytes], **kwargs
+        self, reader: BytestreamReader | bytes
     ) -> BaseMessage:
         """
         decode_message Decodes a KI message (missing protocol context)
@@ -280,31 +296,25 @@ class BaseMessageDecoder:
         Args:
             reader (BytestreamReader | bytes): data to parse
 
-        Raises:
-            NotImplementedError: This is an abstract class
-
         Returns:
-            KIMessage: essage the provided packet decodes to
+            KIMessage: message the provided packet decodes to
         """
-        raise NotImplementedError()
+        ...
 
 
-class MessageProtocol:
+class MessageProtocol: # pylint: disable=too-few-public-methods
     """
     Notice: this is an abstract class and must be implemented by another.
 
     A generic protocol
     """
 
-    def __init__(self) -> None:
-        pass
-
+    @abstractmethod
     def decode_packet(
         self,
         reader: BytestreamReader | bytes,
         header: PacketHeader,
         original_data: bytes = None,
-        **kwargs,
     ) -> BaseMessage:
         """
         decode_packet Decodes a KI packet from the implementing protocol
@@ -321,4 +331,4 @@ class MessageProtocol:
         Returns:
             KIMessage: message the provided packet decodes to
         """
-        raise NotImplementedError()
+        ...

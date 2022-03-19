@@ -7,21 +7,17 @@ from __future__ import annotations
 import logging
 import xml.etree.ElementTree
 from collections import namedtuple
+from dataclasses import dataclass, fields
+from ensurepip import version
 from os import PathLike
 from typing import Any, Dict, List, Union
 
 from printrospector.object import DynamicObject
 from printrospector.type_cache import TypeCache
 
-from moonlight.ki.net_common import (
-    DML_HEADER_LEN,
-    PACKET_HEADER_LEN,
-    BaseMessage,
-    BaseMessageDecoder,
-    BytestreamReader,
-    DMLType,
-    MessageProtocol,
-)
+from moonlight.ki.net_common import (DML_HEADER_LEN, PACKET_HEADER_LEN,
+                                     BaseMessage, BaseMessageDecoder,
+                                     BytestreamReader, DMLType, MessageProtocol)
 
 from .object_property import ObjectPropertyDecoder
 
@@ -161,29 +157,53 @@ class Field:
 
         self.definition.is_property_object()
 
-    def as_property_object(self):
+    def as_property_object(self) -> DynamicObject | None:
+        """
+        as_property_object Takes the field value as it currently is and returns
+            it as a property object if possible
+
+        Returns:
+            DynamicObject | None: Property object representation of the field
+        """
         return self.definition.decode_represented_property_object(field=self)
 
+    def name(self):
+        return self.definition.name
+    
+    def dml_type(self):
+        return self.definition.dml_type
 
+
+@dataclass
 class DMLMessage(BaseMessage):
     def __init__(
         self,
-        fields: List,
+        fields: List[Field],
         protocol_id: int = None,
-        protocol_desc: str = None,
-        msg_id: int = None,
-        order_id: int = None,
+        order_id: str = None,
+        protocol_order: int = None,
         msg_desc: str = None,
         source: str = None,
     ):
-        super.__init__(DMLService)
+        super().__init__(protocol_class=DMLService, original_bytes="")
         self.fields = fields
         self.protocol_id = protocol_id
-        self.protocol_desc = protocol_desc
-        self.msg_id = msg_id
+        self.protocol_desc = order_id
+        self.order_id = protocol_order
         self.msg_desc = msg_desc
         self.source = source
 
+    def get_val(self, field_name):
+        for field in self.fields:
+            if field.name == field_name:
+                return field.value
+        raise AttributeError
+
+    def get_field_def(self, field_name):
+        for field in self.fields:
+            if field.name == field_name:
+                return field
+        raise AttributeError
 
 class DMLMessageDef(BaseMessageDecoder):
     """Defines a DML interface message and its structure.
@@ -193,64 +213,71 @@ class DMLMessageDef(BaseMessageDecoder):
         self,
         protocol,
         xml_def: xml.etree.ElementTree.Element,
-        order: int | None = None,
+        order_id: int | None = None,
     ):
         """Initializes a DML message definition from an XML definition
 
         Args:
             protocol (DMLProtocol): Parent protocol`
-            id (int): id/order number
-            xml_record (Element): "Record" XML Element to load
+            order (int): id/order number
+            xml_def (Element): XML Element to load (parent of RECORD)
         """
+
         # The assigned id (order) to the message
-        self.order = order
+        self.order_id = order_id
         # Parent protocol
         self.protocol = protocol
+        # that _MsgName field? It's often wrong.
+        # #KI_Problems
         self.name = xml_def.tag
         self.desc = None
         self.handler = None
-        self.fields = []
+        self.fields: List[FieldDef] = []
         # only one child ever exists, the record tag
-        for field in list(xml_def[0]):
-            if field.tag == "_MsgDescription":
-                self.desc = field.text
-            elif field.tag == "_MsgHandler":
-                self.handler = field.text
-            elif field.tag == "_MsgName":
-                self.name = field.text
-            elif field.tag == "_MsgOrder":
-                self.order = int(field.text)
-            else:
-                field_map = {"name": field.tag, "text": (field.text or "").strip()}
-                dirty_type = field.attrib.get("TYPE")
-                dirty_type = dirty_type or field.attrib.get("TYP")
-                dirty_type = dirty_type or field.attrib.get("TPYE")
-                if dirty_type is None:
-                    # how does this even work in the live game?!
-                    logging.warning(
-                        "A DML field was found without a type. "
-                        "Since there's only one known place this happens in the "
-                        "current files, assuming it's the GlobalID missing the GID type"
-                    )
-                    # safety check in case this ever expands
-                    assert field_map["name"] == "GlobalID"
-                    field_map["type"] = DMLType.GID
-                elif dirty_type == "UBYTE":
-                    # this is because KI never learned to use a spellchecker
-                    field_map["type"] = DMLType.UBYT
-                else:
-                    # the selector is also because KI never learned to use a spellchecker
-                    field_map["type"] = DMLType.from_str(dirty_type)
+        xml_record = xml_def.find("RECORD")
 
-                field_map["property_obj_flags"] = DMLType.from_str(
-                    field.attrib.get("PO_FLAGS")
+        self.desc = xml_record.find("_MsgDescription").text
+        self.handler = xml_record.find("_MsgHandler").text
+        # We intentionally ignore "_MsgName" because it can be wrong
+        # Game doesn't care.
+        self.order_id = xml_record.find("_MsgOrder")
+        if self.order_id is not None:
+            self.order_id = int(self.order_id.text)
+
+        for xml_field in xml_record:
+            if xml_field.tag.startswith("_"):
+                continue
+            field_map = {"name": xml_field.tag, "text": (xml_field.text or "").strip()}
+            dirty_type = xml_field.attrib.get("TYPE")
+            dirty_type = dirty_type or xml_field.attrib.get("TYP")
+            dirty_type = dirty_type or xml_field.attrib.get("TPYE")
+            if dirty_type is None:
+                # how does this even work in the live game?!
+                logging.warning(
+                    "A DML field was found without a type. "
+                    "Since there's only one known place this happens in the "
+                    "current files, assuming it's the GlobalID missing the GID type"
                 )
-                field_map["property_obj_mask"] = field.attrib.get("PO_MASK")
-                field_map["property_obj_exhaustive"] = field.attrib.get("PO_EXHAUSTIVE")
-                field_map["noxfer"] = field.attrib.get("NOXFER") == "TRUE"
-                self.fields.append(field_map)
+                # safety check in case this ever expands
+                assert field_map["name"] == "GlobalID"
+                field_map["dml_type"] = DMLType.GID
+            elif dirty_type == "UBYTE":
+                # again, i don't understand how these even work ingame
+                field_map["dml_type"] = DMLType.UBYT
+            else:
+                field_map["dml_type"] = DMLType.from_str(dirty_type)
 
-    def field_def(self, name: str) -> map:  # sourcery skip: use-next
+            field_map["property_object_flags"] = DMLType.from_str(
+                xml_field.attrib.get("PO_FLAGS")
+            )
+            field_map["property_object_mask"] = xml_field.attrib.get("PO_MASK")
+            field_map["property_object_exhaustive"] = xml_field.attrib.get(
+                "PO_EXHAUSTIVE"
+            )
+            field_map["noxfer"] = xml_field.attrib.get("NOXFER") == "TRUE"
+            self.fields.append(FieldDef(**field_map))
+
+    def get_field(self, name: str) -> map:  # sourcery skip: use-next
         """Finds and returns the field matching the given name
 
         Args:
@@ -277,20 +304,19 @@ class DMLMessageDef(BaseMessageDecoder):
         elif has_dml_header:
             reader.advance(DML_HEADER_LEN)
 
-        decoded_fields = []
-        for field in self.fields:
-            DMLField = namedtuple(field["name"], ["name", "value", "src_encoding"])
-            value = reader.read(field["type"])
-            decoded_fields.append(DMLField(field["name"], value, field["type"]))
+        decoded_fields = [
+            Field(field_def=field_def, value=reader.read(field_def.dml_type))
+            for field_def in self.fields
+        ]
 
-        return DMLMessage(decoded_fields, msg_id=self.order, msg_desc=self.desc)
+        return DMLMessage(decoded_fields, order_id=self.order_id, msg_desc=self.desc)
 
     def __str__(self) -> str:
-        return f"{self.order}: {self.name}"
+        return f"{self.order_id}: {self.name}"
 
     def __repr__(self) -> str:
         return f"""DMLMessageDef:
-            order = {self.order}
+            order = {self.order_id}
             name = {self.name}
             desc = {self.desc}
             handler = {self.handler}
@@ -318,13 +344,12 @@ class DMLMessageDef(BaseMessageDecoder):
         id_map = {}
         for i, dml_def in enumerate(defs, start=1):
             if dml_def.order != None and i != dml_def.order:
-                raise Exception("Bad order to id conversion caught")
+                raise ValueError("Bad order to id conversion caught")
             dml_def.order = i
 
             id_map[i] = dml_def
 
         return id_map
-
 
 class DMLService:
     def parse_dml_file(self, filename: PathLike) -> None:
@@ -337,7 +362,7 @@ class DMLService:
 
         tree = ET.parse(filename)
         root = tree.getroot()
-        message_blocks = []
+        message_defs: List[DMLMessageDef] = []
 
         # store protocol block as our own instance vars, not as a block
         metadata_block = root.find("_ProtocolInfo/RECORD")
@@ -346,18 +371,14 @@ class DMLService:
         self.version = int(metadata_block.find("ProtocolVersion").text)
         self.description = metadata_block.find("ProtocolDescription").text
 
-        for block in list(root):
-            # this isn't a message definition
-            if block.tag == "_ProtocolInfo":
-                continue
-            # FIXME id should be held by protocol since it's determined in relation
-            # to other messages. Avoid data duping.
-            message_blocks.append(DMLMessageDef(protocol=self, xml_def=block))
+        message_defs.extend(
+            DMLMessageDef(protocol=self, xml_def=block)
+            for block in list(root)
+            if block.tag != "_ProtocolInfo"
+        )
 
         # sort the message blocks and assign their record id
-        self.message_map = DMLMessageDef.list_to_id_map(message_blocks)
-
-        # update child ids
+        self.message_map = DMLMessageDef.list_to_id_map(message_defs)
 
     def __init__(self, filename: PathLike | None = None) -> None:
         self.id: int = None
@@ -400,9 +421,10 @@ class DMLService:
         len: int = reader.read(DMLType.USHRT)
         try:
             dml_object: DMLMessage = self.message_map[message_id].decode_message(reader)
-        except:
+        except Exception as err:
             logging.error(
                 "Failed to decode message. "
+                f'err: "{err}" '
                 f"protocol_id: {self.id}, "
                 f"msg_id: {self.message_map[message_id]}, "
                 f"packet_data (optional): [{original_data}]"
@@ -412,7 +434,6 @@ class DMLService:
             dml_object.protocol_id = self.id
             dml_object.protocol_desc = self.description
         return dml_object
-
 
 class DMLProtocol(MessageProtocol):
     def load_service(self, protocol_file):
@@ -428,7 +449,10 @@ class DMLProtocol(MessageProtocol):
             return
 
         for f in service_files:
-            self.load_service(f)
+            try:
+                self.load_service(f)
+            except ValueError as err:
+                raise ValueError("Failed to load xml message definition") from err
 
     def decode_packet(
         self,
