@@ -14,7 +14,6 @@ def test_session_offer(control_protocol, control_session_offer):
     header = PacketHeader(reader)
     message = control_protocol.decode_packet(reader, header)
     assert message.OPCODE == 0
-    assert message.reserved == 0
     assert message.session_id == 1419
     assert message.signed_msg_len == 281
     assert message.unix_timestamp_millis_into_second == 276
@@ -46,7 +45,6 @@ def test_session_accept(control_protocol, control_session_accept):
     message = control_protocol.decode_packet(reader, header)
     assert message.OPCODE == 5
     assert message.reserved_start == 0
-    assert message.reserved_end == 0
     assert message.session_id == 1419
     assert message.signed_msg_len == 257
     assert message.unix_timestamp_millis_into_second == 288

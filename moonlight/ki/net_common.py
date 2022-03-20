@@ -129,6 +129,9 @@ class BytestreamReader:
             return self.__peek_stream(length)
         return self.stream.read(length)
 
+    def at_packet_terminate(self):
+        return self.bytes_remaining() == 1 and self.read_raw(1) == b'\x00'
+
     def __simple_read(self, dml_type: DMLType, peek=False) -> Any:
         """
         __simple_read reads DMLTypes that are always the same size and
@@ -229,6 +232,9 @@ class BytestreamReader:
 
         return self.read(enc_type, peek=True)
 
+    def bytes_remaining(self):
+        return self.stream.getbuffer().nbytes - self.stream.tell()
+
     def __str__(self):
         return f"BytestreamReader(UINT8: {self.read(DMLType.UINT8, peek=True)}, UINT16: {self.read(DMLType.UINT16, peek=True)}, BYT: {hex(self.read(DMLType.BYT, peek=True))})"
 
@@ -236,29 +242,33 @@ class BytestreamReader:
         return self.__str__()
 
 
-@dataclass
-class BaseMessage:
-    """
-     Dataclass intended to create an interface for different messages and
-     so that all bytes can be held onto.
-    """
-    def __init__(self, protocol_class: "MessageProtocol", original_bytes: bytes = None) -> None:
-        """
-        __init__
+# @dataclass
+# class BaseMessage:
+#     """
+#     Dataclass intended to create an interface for different messages and
+#     so that all bytes can be held onto.
+#     """
 
-        Args:
-            protocol_class (MessageProtocol): protocol of the message
-            original_bytes (bytes, optional): original bytes of the message. Defaults to None.
-        """
-        self.protocol_class = protocol_class
-        self.original_bytes = original_bytes
+#     def __init__(
+#         self, protocol_class: "MessageProtocol", original_bytes: bytes = None
+#     ) -> None:
+#         """
+#         __init__
+
+#         Args:
+#             protocol_class (MessageProtocol): protocol of the message
+#             original_bytes (bytes, optional): original bytes of the message. Defaults to None.
+#         """
+#         self.protocol_class = protocol_class
+#         self.original_bytes = original_bytes
 
 
 @dataclass
 class PacketHeader:
     """
-     Dataclass holding the KI packet header fields
+    Dataclass holding the KI packet header fields
     """
+
     def __init__(self, buffer: BytesIO | bytes) -> None:
         if isinstance(buffer, bytes):
             buffer = BytestreamReader(buffer)
@@ -272,63 +282,61 @@ class PacketHeader:
             raise ValueError("Not a KI game protocol packet. F00D missing.")
 
 
-class BaseMessageDecoder: # pylint: disable=too-few-public-methods
-    """
-    Notice: this is an abstract class and must be implemented by another.
+# class BaseMessageDecoder:  # pylint: disable=too-few-public-methods
+#     """
+#     Notice: this is an abstract class and must be implemented by another.
 
-    A generic decoder capable of decoding a specific message in the KI protocol.
-    Decoders should be able to return the represented object without access to additional context beyond the provided bytes.
+#     A generic decoder capable of decoding a specific message in the KI protocol.
+#     Decoders should be able to return the represented object without access to additional context beyond the provided bytes.
 
-    For example, DML message decoders provided all bytes following the KI header should be able to determine the correct service and message ID.
-    However, control messages rely on the content of the header. Therefore, they have a decoder per message due to the different parsing rules based on that header.
+#     For example, DML message decoders provided all bytes following the KI header should be able to determine the correct service and message ID.
+#     However, control messages rely on the content of the header. Therefore, they have a decoder per message due to the different parsing rules based on that header.
 
-    Raises:
-        NotImplementedError: This is an abstract class
-    """
+#     Raises:
+#         NotImplementedError: This is an abstract class
+#     """
 
-    @abstractmethod
-    def decode_message(
-        self, reader: BytestreamReader | bytes
-    ) -> BaseMessage:
-        """
-        decode_message Decodes a KI message (missing protocol context)
+#     @abstractmethod
+#     def decode_message(self, reader: BytestreamReader | bytes) -> BaseMessage:
+#         """
+#         decode_message Decodes a KI message (missing protocol context)
 
-        Args:
-            reader (BytestreamReader | bytes): data to parse
+#         Args:
+#             reader (BytestreamReader | bytes): data to parse
 
-        Returns:
-            KIMessage: message the provided packet decodes to
-        """
-        ...
+#         Returns:
+#             KIMessage: message the provided packet decodes to
+#         """
+#         ...
 
 
-class MessageProtocol: # pylint: disable=too-few-public-methods
-    """
-    Notice: this is an abstract class and must be implemented by another.
+# class MessageProtocol:  # pylint: disable=too-few-public-methods
+#     """
+#     Notice: this is an abstract class and must be implemented by another.
 
-    A generic protocol
-    """
+#     A generic protocol
+#     """
 
-    @abstractmethod
-    def decode_packet(
-        self,
-        reader: BytestreamReader | bytes,
-        header: PacketHeader,
-        original_data: bytes = None,
-    ) -> BaseMessage:
-        """
-        decode_packet Decodes a KI packet from the implementing protocol
-        returning a KI message implementation
+#     @abstractmethod
+#     def decode_packet(
+#         self,
+#         reader: BytestreamReader | bytes,
+#         header: PacketHeader,
+#         original_data: bytes = None,
+#     ):
+#         """
+#         decode_packet Decodes a KI packet from the implementing protocol
+#         returning a KI message implementation
 
-        Args:
-            reader (BytestreamReader | bytes): data to parse
-            header (KIPacketHeader): packet's header frame
-            original_data (bytes, optional): Original bytes. Defaults to None and is optional.
+#         Args:
+#             reader (BytestreamReader | bytes): data to parse
+#             header (KIPacketHeader): packet's header frame
+#             original_data (bytes, optional): Original bytes. Defaults to None and is optional.
 
-        Raises:
-            NotImplementedError: This is an abstract class
+#         Raises:
+#             NotImplementedError: This is an abstract class
 
-        Returns:
-            KIMessage: message the provided packet decodes to
-        """
-        ...
+#         Returns:
+#             KIMessage: message the provided packet decodes to
+#         """
+#         ...

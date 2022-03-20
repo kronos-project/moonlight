@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import xml.etree.ElementTree
 from collections import namedtuple
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from ensurepip import version
 from os import PathLike
 from typing import Any, Dict, List, Union
@@ -15,9 +15,13 @@ from typing import Any, Dict, List, Union
 from printrospector.object import DynamicObject
 from printrospector.type_cache import TypeCache
 
-from moonlight.ki.net_common import (DML_HEADER_LEN, PACKET_HEADER_LEN,
-                                     BaseMessage, BaseMessageDecoder,
-                                     BytestreamReader, DMLType, MessageProtocol)
+from moonlight.ki.net_common import (
+    DML_HEADER_LEN,
+    PACKET_HEADER_LEN,
+    BytestreamReader,
+    DMLType,
+    PacketHeader
+)
 
 from .object_property import ObjectPropertyDecoder
 
@@ -169,29 +173,33 @@ class Field:
 
     def name(self):
         return self.definition.name
-    
+
     def dml_type(self):
         return self.definition.dml_type
 
 
 @dataclass
-class DMLMessage(BaseMessage):
+class DMLMessage:
     def __init__(
         self,
         fields: List[Field],
+        packet_bytes: bytes = None,
         protocol_id: int = None,
-        order_id: str = None,
-        protocol_order: int = None,
+        protocol_desc: str = None,
+        order_id: int = None,
         msg_desc: str = None,
         source: str = None,
+        packet_header: PacketHeader = None,
     ):
-        super().__init__(protocol_class=DMLService, original_bytes="")
+        self.protocol_class = DMLService
+        self.packet_bytes = packet_bytes
         self.fields = fields
         self.protocol_id = protocol_id
-        self.protocol_desc = order_id
-        self.order_id = protocol_order
+        self.protocol_desc = protocol_desc
+        self.order_id = order_id
         self.msg_desc = msg_desc
         self.source = source
+        self.packet_header = packet_header
 
     def get_val(self, field_name):
         for field in self.fields:
@@ -205,7 +213,8 @@ class DMLMessage(BaseMessage):
                 return field
         raise AttributeError
 
-class DMLMessageDef(BaseMessageDecoder):
+
+class DMLMessageDef:
     """Defines a DML interface message and its structure.
     Provides a deserializer for the represented message."""
 
@@ -296,7 +305,7 @@ class DMLMessageDef(BaseMessageDecoder):
         reader: BytestreamReader | bytes,
         has_ki_header=False,
         has_dml_header=False,
-        **kwargs,
+        packet_bytes: bytes = None,
     ) -> DMLMessage:
         if has_ki_header:
             # advance past ki header and message header
@@ -309,7 +318,15 @@ class DMLMessageDef(BaseMessageDecoder):
             for field_def in self.fields
         ]
 
-        return DMLMessage(decoded_fields, order_id=self.order_id, msg_desc=self.desc)
+        if not reader.at_packet_terminate():
+            raise ValueError("packet did not end with a null byte")
+
+        return DMLMessage(
+            decoded_fields,
+            packet_bytes=packet_bytes,
+            order_id=self.order_id,
+            msg_desc=self.desc,
+        )
 
     def __str__(self) -> str:
         return f"{self.order_id}: {self.name}"
@@ -332,8 +349,8 @@ class DMLMessageDef(BaseMessageDecoder):
         # sort on the order number, or definition name if undefined
         # FIXME: is there a case where both are given?
         def msg_key(msg):
-            if msg.order is not None:
-                return msg.order
+            if msg.order_id is not None:
+                return msg.order_id
             assert msg.name
             return msg.name
 
@@ -343,13 +360,14 @@ class DMLMessageDef(BaseMessageDecoder):
         # assign ids
         id_map = {}
         for i, dml_def in enumerate(defs, start=1):
-            if dml_def.order != None and i != dml_def.order:
+            if dml_def.order_id != None and i != dml_def.order_id:
                 raise ValueError("Bad order to id conversion caught")
-            dml_def.order = i
+            dml_def.order_id = i
 
             id_map[i] = dml_def
 
         return id_map
+
 
 class DMLService:
     def parse_dml_file(self, filename: PathLike) -> None:
@@ -421,7 +439,7 @@ class DMLService:
         len: int = reader.read(DMLType.USHRT)
         try:
             dml_object: DMLMessage = self.message_map[message_id].decode_message(reader)
-        except Exception as err:
+        except ValueError as err:
             logging.error(
                 "Failed to decode message. "
                 f'err: "{err}" '
@@ -435,7 +453,8 @@ class DMLService:
             dml_object.protocol_desc = self.description
         return dml_object
 
-class DMLProtocol(MessageProtocol):
+
+class DMLProtocol:
     def load_service(self, protocol_file):
         service = DMLService(protocol_file)
         logging.info(f"loaded protocol {service.id}: {service.description}")
@@ -457,6 +476,8 @@ class DMLProtocol(MessageProtocol):
     def decode_packet(
         self,
         reader: Union[BytestreamReader, bytes],
+        header: PacketHeader,
+        packet_bytes: bytes = None,
         has_ki_header: bool = False,
     ) -> DMLMessage:
         if type(reader) == bytes:
@@ -466,6 +487,12 @@ class DMLProtocol(MessageProtocol):
         service_id = reader.peek(DMLType.UBYT)
         if service_id not in self.protocol_map:
             raise ValueError(f"unknown dml protocol: {service_id}")
-        return self.protocol_map[service_id].decode_dml_service(
-            reader, has_service_id=True
+
+        msg = self.protocol_map[service_id].decode_dml_service(
+            reader,
+            has_service_id=True,
+            original_data=packet_bytes,
         )
+        if msg:
+            msg.packet_header = header
+        return msg

@@ -17,6 +17,7 @@ click = "^8.0.4"
 pytest = "^6.2.5"
 black = {version = "^21.12b0", allow-prereleases = true}
 pre-commit = "^2.17.0"
+ipython = "^8.1.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -24,5 +25,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = [
-    "line-too-long" # We'll let black handle this. There are cases when long lines are okay.
+    "line-too-long", # We'll let black handle this. There are cases when long lines are okay.
+    "missing-docstring" # Once stable I'll be more worried about this
 ]
