@@ -130,7 +130,7 @@ class BytestreamReader:
         return self.stream.read(length)
 
     def at_packet_terminate(self):
-        return self.bytes_remaining() == 1 and self.read_raw(1) == b'\x00'
+        return self.bytes_remaining() == 1 and self.read_raw(1) == b"\x00"
 
     def __simple_read(self, dml_type: DMLType, peek=False) -> Any:
         """
@@ -266,10 +266,13 @@ class BytestreamReader:
 @dataclass
 class PacketHeader:
     """
-    Dataclass holding the KI packet header fields
+    Dataclass holding the KI packet header fields.
+
+    Note: Passing in a BytestreamReader instead of bytes will change the current
+    position of the reader.
     """
 
-    def __init__(self, buffer: BytesIO | bytes) -> None:
+    def __init__(self, buffer: BytestreamReader | bytes) -> None:
         if isinstance(buffer, bytes):
             buffer = BytestreamReader(buffer)
         # validate content

@@ -1,6 +1,9 @@
 import pytest
-from moonlight.ki.control import ControlMessage, ControlProtocol
-from moonlight.ki.net_common import BytestreamReader, PacketHeader
+from moonlight.net import (
+    ControlMessage,
+    ControlProtocol,
+    PacketHeader,
+)
 from .fixtures import *
 
 
@@ -9,10 +12,12 @@ def control_protocol():
     return ControlProtocol()
 
 
-def test_session_offer(control_protocol, control_session_offer):
-    reader = BytestreamReader(control_session_offer)
-    header = PacketHeader(reader)
-    message = control_protocol.decode_packet(reader, header)
+def test_session_offer(control_protocol: ControlProtocol, control_session_offer):
+    header = PacketHeader(control_session_offer)
+    message = control_protocol.decode_packet(
+        control_session_offer,
+        header,
+    )
     assert message.OPCODE == 0
     assert message.session_id == 1419
     assert message.signed_msg_len == 281
@@ -40,9 +45,10 @@ def test_session_offer(control_protocol, control_session_offer):
 
 
 def test_session_accept(control_protocol, control_session_accept):
-    reader = BytestreamReader(control_session_accept)
-    header = PacketHeader(reader)
-    message = control_protocol.decode_packet(reader, header)
+    header = PacketHeader(control_session_accept)
+    message = control_protocol.decode_packet(
+        control_session_accept, header, has_ki_header=True
+    )
     assert message.OPCODE == 5
     assert message.reserved_start == 0
     assert message.session_id == 1419

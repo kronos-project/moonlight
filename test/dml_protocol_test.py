@@ -51,7 +51,9 @@ def test_decode_poi(dml_protocol, dml_update_poi: bytes):
 
 def test_decode_correct_loc(dml_protocol, game_messages_correct_loc: bytes):
     header = PacketHeader(game_messages_correct_loc)
-    obj = dml_protocol.decode_packet(game_messages_correct_loc, header=header, has_ki_header=True)
+    obj = dml_protocol.decode_packet(
+        game_messages_correct_loc, header=header, has_ki_header=True
+    )
     assert obj != None
     assert obj.order_id == 119
     assert obj.protocol_id == 5

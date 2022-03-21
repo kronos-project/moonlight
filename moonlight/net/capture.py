@@ -9,19 +9,18 @@ import traceback
 from os import PathLike, listdir
 from os.path import isfile, join
 
-from scapy.all import TCP
+from scapy.layers.inet import TCP
 from scapy.packet import Packet, Raw
 from scapy.sendrecv import AsyncSniffer, sniff
 from scapy.sessions import TCPSession
-from scapy.utils import PcapReader
+from scapy.utils import PcapReader as Scapy_PcapReader
 
-from .dml import DMLMessage, DMLProtocol
+from .dml import DMLMessage, DMLProtocolRegistry
 from .control import ControlProtocol, ControlMessage
-from .net_common import BytestreamReader, PacketHeader
+from .common import BytestreamReader, PacketHeader
 
 
-
-class KIStreamReader:
+class PcapReader:
     def __init__(
         self,
         typedef_file: PathLike = None,
@@ -32,10 +31,10 @@ class KIStreamReader:
     ) -> None:
         self.pcap_file = pcap_file
         self.msg_def_folder = msg_def_folder
-        self.pcap_reader: PcapReader = None
+        self.pcap_reader: Scapy_PcapReader = None
 
         if isfile(pcap_file):
-            self.pcap_reader = PcapReader(pcap_file)
+            self.pcap_reader = Scapy_PcapReader(pcap_file)
         else:
             raise ValueError("Provided pcap filepath doesn't exist")
 
@@ -44,15 +43,12 @@ class KIStreamReader:
             f for f in listdir(msg_def_folder) if isfile(join(msg_def_folder, f))
         ]
         dml_services = map(lambda x: join(msg_def_folder, x), dml_services)
-        self.dml_decoder = DMLProtocol(*dml_services)
+        self.dml_decoder = DMLProtocolRegistry(*dml_services)
 
         # Load control decoder
         self.control_decoder: ControlProtocol = ControlProtocol()
 
-
-    def decode_packet(
-        self, bites: bytes
-    ) -> ControlMessage | DMLMessage:
+    def decode_packet(self, bites: bytes) -> ControlMessage | DMLMessage:
         bites = None
         header = None
         if isinstance(bites, bytes):
@@ -67,11 +63,14 @@ class KIStreamReader:
             return None
 
         if header.content_is_control != 0:
-            return self.control_decoder.decode_packet(reader, header, original_data=bites)
+            return self.control_decoder.decode_packet(
+                reader, header, original_data=bites
+            )
 
         return self.dml_decoder.decode_packet(reader, header, packet_bytes=bites)
 
-class KIPacketSniffer:
+
+class LiveSniffer:
     def __init__(
         self,
         dml_def_folder: PathLike = os.path.join(
@@ -83,7 +82,7 @@ class KIPacketSniffer:
             f for f in listdir(dml_def_folder) if isfile(join(dml_def_folder, f))
         ]
         protocols = map(lambda x: join(dml_def_folder, x), protocols)
-        self.decoder = KIStreamReader(msg_def_folder=dml_def_folder)
+        self.decoder = PcapReader(msg_def_folder=dml_def_folder)
 
     def scapy_callback(self, pkt: Packet):
         if type(pkt[TCP].payload) is not Raw:
@@ -122,63 +121,63 @@ if __name__ == "__main__":
         ],
     )
     print("hi")
-    s = KIPacketSniffer()
+    s = LiveSniffer()
     print("Opening packet stream")
 
     s.open_livestream()
 
 
-class KIStreamReader:
-    def __init__(
-        self,
-        typedef_file: PathLike = None,
-        pcap_file: PathLike = None,
-        msg_def_folder: PathLike = os.path.join(
-            os.path.dirname(__file__), "..", "..", "res", "dml", "messages"
-        ),
-    ) -> None:
-        self.pcap_file = pcap_file
-        self.msg_def_folder = msg_def_folder
-        self.pcap_reader: PcapReader = None
+# class PcapReader:
+#     def __init__(
+#         self,
+#         typedef_file: PathLike = None,
+#         pcap_file: PathLike = None,
+#         msg_def_folder: PathLike = os.path.join(
+#             os.path.dirname(__file__), "..", "..", "res", "dml", "messages"
+#         ),
+#     ) -> None:
+#         self.pcap_file = pcap_file
+#         self.msg_def_folder = msg_def_folder
+#         self.pcap_reader: PcapReader = None
 
-        if isfile(pcap_file):
-            self.pcap_reader: PcapReader = PcapReader(pcap_file)
-        else:
-            raise ValueError("Provided pcap filepath doesn't exist")
+#         if isfile(pcap_file):
+#             self.pcap_reader: PcapReader = PcapReader(pcap_file)
+#         else:
+#             raise ValueError("Provided pcap filepath doesn't exist")
 
-        # Load dml decoder
-        dml_services = [
-            f for f in listdir(msg_def_folder) if isfile(join(msg_def_folder, f))
-        ]
-        dml_services = map(lambda x: join(msg_def_folder, x), dml_services)
-        self.dml_decoder = DMLProtocol(*dml_services)
+#         # Load dml decoder
+#         dml_services = [
+#             f for f in listdir(msg_def_folder) if isfile(join(msg_def_folder, f))
+#         ]
+#         dml_services = map(lambda x: join(msg_def_folder, x), dml_services)
+#         self.dml_decoder = DMLProtocol(*dml_services)
 
-        # Load control decoder
-        self.control_decoder: ControlProtocol = ControlProtocol()
+#         # Load control decoder
+#         self.control_decoder: ControlProtocol = ControlProtocol()
 
-    # def __iter__(self):
-    #     return self
+#     # def __iter__(self):
+#     #     return self
 
-    # def __next__(self):
-    #     self.pcap_reader.
+#     # def __next__(self):
+#     #     self.pcap_reader.
 
-    def decode_packet(
-        self, bites: bytes
-    ) -> ControlMessage | DMLMessage:
-        bites = None
-        header = None
-        if isinstance(bites, bytes):
-            reader = BytestreamReader(bites)
-        else:
-            raise ValueError("bites is not of type bytes")
+#     def decode_packet(self, bites: bytes) -> ControlMessage | DMLMessage:
+#         bites = None
+#         header = None
+#         if isinstance(bites, bytes):
+#             reader = BytestreamReader(bites)
+#         else:
+#             raise ValueError("bites is not of type bytes")
 
-        try:
-            header = PacketHeader(reader)
-        except ValueError:
-            logging.debug("Invalid packet received: bad KI header")
-            return None
+#         try:
+#             header = PacketHeader(reader)
+#         except ValueError:
+#             logging.debug("Invalid packet received: bad KI header")
+#             return None
 
-        if header.content_is_control != 0:
-            return self.control_decoder.decode_packet(reader, header, original_data=bites)
+#         if header.content_is_control != 0:
+#             return self.control_decoder.decode_packet(
+#                 reader, header, original_data=bites
+#             )
 
-        return self.dml_decoder.decode_packet(reader, header, packet_bytes=bites)
+#         return self.dml_decoder.decode_packet(reader, header, packet_bytes=bites)

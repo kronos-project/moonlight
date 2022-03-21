@@ -10,6 +10,10 @@ from os import PathLike
 from printrospector import BinarySerializer, DynamicObject, TypeCache
 
 
+def build_typecache(path: PathLike) -> TypeCache:
+    raise NotImplementedError
+
+
 class ObjectPropertyDecoder:
     """
     Wrapper for printrospector's parser that abstracts needing to deal with
@@ -22,7 +26,7 @@ class ObjectPropertyDecoder:
         exhaustive: bool,
         property_mask: int = 24,
         typedef_path: PathLike | None = None,
-        type_cache: TypeCache | None = None,
+        typecache: TypeCache | None = None,
     ) -> None:
         """
         Args:
@@ -39,9 +43,9 @@ class ObjectPropertyDecoder:
         self.flags = flags
         self.exhaustive = exhaustive
         self.__typedef_path = typedef_path
-        self.type_cache = type_cache
+        self.typecache = typecache
         self.serializer = None
-        if type_cache and typedef_path:
+        if typecache and typedef_path:
             logging.warning(
                 "Both TypeCache and path to typedef.json were "
                 "provided to field. Using provided TypeCache first."
@@ -74,8 +78,20 @@ class ObjectPropertyDecoder:
 
         self.__typedef_path = typedef_path
         with open(self.__typedef_path, encoding="utf-8") as file:
-            self.type_cache = TypeCache(json.load(file))
-        self.serializer = BinarySerializer(self.type_cache, self.flags, self.exhaustive)
+            self.typecache = TypeCache(json.load(file))
+        self.serializer = BinarySerializer(self.typecache, self.flags, self.exhaustive)
+
+    def set_typecache(self, cache: TypeCache, sourcepath: PathLike | None = None):
+        """
+        set_typecache _summary_
+
+        Args:
+            cache (TypeCache): _description_
+            sourcepath (PathLike | None): Optional sourcepath for visibility's sake
+        """
+        self.typecache = cache
+        self.__typedef_path = sourcepath
+
 
     def can_deserialize(self) -> bool:
         """
@@ -144,5 +160,5 @@ class ObjectPropertyDecoder:
             raise ValueError("Cannot deserialize without serde settings")
 
     def __verify_typecache(self):
-        if not self.type_cache:
+        if not self.typecache:
             raise ValueError("Cannot deserialize until a typedef is loaded")

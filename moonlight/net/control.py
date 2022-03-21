@@ -5,7 +5,7 @@
 
 import struct
 
-from .net_common import *
+from .common import *
 
 
 def _unpack_weirdo_timestamp(reader: BytestreamReader):
@@ -192,25 +192,38 @@ class ControlProtocol:
         reader: Union[BytestreamReader, bytes],
         header: PacketHeader,
         original_data: bytes = None,
+        has_ki_header: bool = False,
     ) -> ControlMessage:
         if not header.content_is_control:
             return None
         opcode = header.control_opcode
         if opcode == SessionOfferMessage.OPCODE:
             return SessionOfferMessage.from_bytes(
-                packet_header=header, reader=reader, original_bytes=original_data
+                packet_header=header,
+                reader=reader,
+                original_bytes=original_data,
+                has_ki_header=has_ki_header,
             )
         if opcode == SessionAcceptMessage.OPCODE:
             return SessionAcceptMessage.from_bytes(
-                packet_header=header, reader=reader, original_data=original_data
+                packet_header=header,
+                reader=reader,
+                original_data=original_data,
+                has_ki_header=has_ki_header,
             )
         if opcode == KeepAliveMessage.OPCODE:
             return KeepAliveMessage.from_bytes(
-                packet_header=header, reader=reader, original_data=original_data
+                packet_header=header,
+                reader=reader,
+                original_data=original_data,
+                has_ki_header=has_ki_header,
             )
         if opcode == KeepAliveResponseMessage.OPCODE:
             return KeepAliveResponseMessage.from_bytes(
-                packet_header=header, reader=reader, original_data=original_data
+                packet_header=header,
+                reader=reader,
+                original_data=original_data,
+                has_ki_header=has_ki_header,
             )
 
         return None
