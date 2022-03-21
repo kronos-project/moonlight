@@ -13,5 +13,8 @@ repos:
           name: pylint
           entry: poetry run pylint moonlight
           language: system
-          always_run: true
-          pass_filenames: false
+          pass_filenames: true
+          types: [python]
+          args: [
+            '-E'
+          ]
