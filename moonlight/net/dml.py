@@ -324,6 +324,7 @@ class DMLMessageDef:
 
         return DMLMessage(
             decoded_fields,
+            dml_protocol=self.protocol,
             packet_bytes=packet_bytes,
             order_id=self.order_id,
             msg_desc=self.desc,
@@ -470,7 +471,6 @@ class DMLProtocolRegistry:
         if typedef_path:
             raise NotImplementedError
 
-
     def load_service(self, protocol_file):
         protocol = DMLProtocol(protocol_file)
         logging.info(f"loaded protocol {protocol.id}: {protocol.description}")
@@ -486,7 +486,6 @@ class DMLProtocolRegistry:
         for protocol in self.protocol_map.values():
             for msg in protocol.message_map.values():
                 msg.reload_protocol_typedefs(cache, typedef_path)
-
 
     def decode_packet(
         self,

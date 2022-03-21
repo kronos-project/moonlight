@@ -92,7 +92,6 @@ class ObjectPropertyDecoder:
         self.typecache = cache
         self.__typedef_path = sourcepath
 
-
     def can_deserialize(self) -> bool:
         """
         can_deserialize returns `True` if the object can be deserialized with
