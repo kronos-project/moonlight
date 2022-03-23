@@ -174,7 +174,11 @@ class BytestreamReader:
     # FIXME refactor to just return bytes. Most things dont use strings
     def __str_read(self, peek=False, decode: bool = True):
         str_len = self.__simple_read(DMLType.USHRT, peek=peek)
-        bites = self.stream.read(str_len)
+        if str_len > 0:
+            bites = self.stream.read(str_len)
+        else:
+            bites = b""
+
         if not decode:
             return bites
         try:
@@ -263,7 +267,6 @@ class BytestreamReader:
 #         self.original_bytes = original_bytes
 
 
-@dataclass
 class PacketHeader:
     """
     Dataclass holding the KI packet header fields.
@@ -283,6 +286,9 @@ class PacketHeader:
         self.mystery_bytes = buffer.read(DMLType.UINT16)
         if food != 0xF00D:
             raise ValueError("Not a KI game protocol packet. F00D missing.")
+
+    def __repr__(self) -> str:
+        return f"<PacketHeader content_len={self.content_len} content_is_control={hex(self.content_is_control)} control_opcode={hex(self.control_opcode)}>"
 
 
 # class BaseMessageDecoder:  # pylint: disable=too-few-public-methods

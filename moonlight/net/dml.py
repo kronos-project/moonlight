@@ -134,6 +134,9 @@ class FieldDef:
             noxfer=(node.attrib.get("NOXFER") == "TRUE"),
         )
 
+    def __repr__(self) -> str:
+        return f"<FieldDef {self.name}({self.dml_type})>"
+
 
 class Field:
     """
@@ -173,30 +176,27 @@ class Field:
     def dml_type(self):
         return self.definition.dml_type
 
+    def __str__(self) -> str:
+        if self.is_property_object():
+            return f"{self.value} (property object)"
+        return str(self.value)
 
-@dataclass
+    def __repr__(self) -> str:
+        return f"Field(value={self.value}, field_def={repr(self.definition)})"
+
+
+@dataclass(init=True, repr=True)
 class DMLMessage:
-    def __init__(
-        self,
-        fields: List[Field],
-        dml_protocol: DMLProtocol,
-        packet_bytes: bytes = None,
-        protocol_id: int = None,
-        protocol_desc: str = None,
-        order_id: int = None,
-        msg_desc: str = None,
-        source: str = None,
-        packet_header: PacketHeader = None,
-    ):
-        self.packet_bytes = packet_bytes
-        self.fields = fields
-        self.protocol = dml_protocol
-        self.protocol_id = protocol_id
-        self.protocol_desc = protocol_desc
-        self.order_id = order_id
-        self.msg_desc = msg_desc
-        self.source = source
-        self.packet_header = packet_header
+    fields: List[Field]
+    dml_protocol: DMLProtocol
+    packet_bytes: bytes = None
+    protocol_id: int = None
+    protocol_desc: str = None
+    order_id: int = None
+    msg_name: str = None
+    msg_desc: str = None
+    source: str = None
+    packet_header: PacketHeader = None
 
     def get_val(self, field_name):
         for field in self.fields:
@@ -319,8 +319,9 @@ class DMLMessageDef:
             for field_def in self.fields
         ]
 
-        if not reader.at_packet_terminate():
-            raise ValueError("packet did not end with a null byte")
+        # TODO check this assumption?
+        # if not reader.at_packet_terminate():
+        #     raise ValueError("packet did not end with a null byte")
 
         return DMLMessage(
             decoded_fields,
@@ -328,6 +329,7 @@ class DMLMessageDef:
             packet_bytes=packet_bytes,
             order_id=self.order_id,
             msg_desc=self.desc,
+            msg_name=self.name,
         )
 
     def __str__(self) -> str:
@@ -354,7 +356,7 @@ class DMLMessageDef:
             if msg.order_id is not None:
                 return msg.order_id
             assert msg.name
-            return msg.name
+            return msg.name.encode()
 
         # sort and assign ids based on ordinal (ASCII chart) order
         defs.sort(key=msg_key)
@@ -440,7 +442,9 @@ class DMLProtocol:
         message_id: int = bites.read(DMLType.UBYT)
         message_len: int = bites.read(DMLType.USHRT)
         try:
-            dml_object: DMLMessage = self.message_map[message_id].decode_message(bites)
+            dml_object: DMLMessage = self.message_map[message_id].decode_message(
+                bites, packet_bytes=original_bites
+            )
         except ValueError as err:
             logging.error(
                 "Failed to decode message. "

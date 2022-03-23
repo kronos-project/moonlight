@@ -63,8 +63,6 @@ class SessionOfferMessage(ControlMessage):
         millis_into_sec_timestamp = reader.read(DMLType.UINT32)
         signed_message_len = reader.read(DMLType.UINT32)
         signed_message = reader.read_raw(signed_message_len)
-        if not reader.at_packet_terminate():
-            raise ValueError("packet did not end with a null byte")
 
         return cls(
             original_bytes=original_bytes,
@@ -118,8 +116,6 @@ class SessionAcceptMessage(ControlMessage):
         session_id = reader.read(DMLType.UINT16)
         signed_message_len = reader.read(DMLType.UINT32)
         signed_message = reader.read_raw(signed_message_len)
-        if not reader.at_packet_terminate():
-            raise ValueError("packet did not end with a null byte")
 
         return cls(
             original_bytes=original_data,
@@ -141,13 +137,22 @@ class KeepAliveMessage(ControlMessage):
         packet_header: PacketHeader,
         original_bytes: bytes,
         session_id: int,
-        session_age_minutes: int,
-        unix_timestamp_millis_into_second: int,
+        variable_timestamp: bytes,
     ) -> None:
         super().__init__(packet_header, original_bytes)
         self.session_id: int = session_id
-        self.session_age_minutes: int = session_age_minutes
-        self.unix_timestamp_millis_into_second: int = unix_timestamp_millis_into_second
+        self.variable_timestamp: bytes = variable_timestamp
+
+    def server_millis_since_start(self):
+        return BytestreamReader(self.variable_timestamp).read(DMLType.UINT32)
+
+    def client_millis_into_second(self):
+        # bytes 1-2 hold if from client
+        return BytestreamReader(self.variable_timestamp).read(DMLType.UINT16)
+
+    def client_min_into_session(self):
+        # bytes 3-4 hold if from client
+        return BytestreamReader(self.variable_timestamp[2:]).read(DMLType.UINT16)
 
     @classmethod
     def from_bytes(
@@ -157,23 +162,19 @@ class KeepAliveMessage(ControlMessage):
         packet_header: PacketHeader = None,
         has_ki_header=False,
     ) -> ControlMessage:
-        if type(reader) == bytes:
+        if isinstance(reader, bytes):
             reader = BytestreamReader(reader)
         if has_ki_header:
             reader.advance(PACKET_HEADER_LEN)
 
         session_id = reader.read(DMLType.UINT16)
-        session_age_minutes = reader.read(DMLType.UINT32)
-        millis_into_sec_timestamp = reader.read(DMLType.UINT32)
-        if reader.bytes_remaining != 1 or reader.read_raw(1) != 0x0:
-            raise ValueError("packet did not end with a null byte")
+        variable_timestamp = reader.read(DMLType.UINT32)
 
         return cls(
             original_bytes=original_data,
             packet_header=packet_header,
             session_id=session_id,
-            session_age_minutes=session_age_minutes,
-            unix_timestamp_millis_into_second=millis_into_sec_timestamp,
+            variable_timestamp=variable_timestamp,
         )
 
 
