@@ -1,20 +1,20 @@
 import os
 from os.path import isfile, join
-from pathlib import Path
 from posix import listdir
+
+from moonlight.net import DMLProtocolRegistry
 from .fixtures import dml_update_poi
 
 import pytest
-from moonlight.ki.net_common import BytestreamReader, DMLType, PacketHeader
-from moonlight.ki.dml import DMLProtocol
+from moonlight.net import DMLType
 
 
 @pytest.fixture
-def dml_protocol() -> DMLProtocol:
+def dml_protocol() -> DMLProtocolRegistry:
     res_folder = os.path.join(os.path.dirname(__file__), "fixtures", "dml", "messages")
     protocols = [f for f in listdir(res_folder) if isfile(join(res_folder, f))]
     protocols = map(lambda x: join(res_folder, x), protocols)
-    return DMLProtocol(*protocols)
+    return DMLProtocolRegistry(*protocols)
 
 
 @pytest.fixture
@@ -32,10 +32,9 @@ def game_messages_correct_loc() -> bytes:
     )
 
 
-def test_decode_poi(dml_protocol, dml_update_poi: bytes):
-    header = PacketHeader(dml_update_poi)
-    obj = dml_protocol.decode_packet(dml_update_poi, header=header, has_ki_header=True)
-    assert obj != None
+def test_decode_poi(dml_protocol: DMLProtocolRegistry, dml_update_poi: bytes):
+    obj = dml_protocol.decode_packet(dml_update_poi)
+    assert obj is not None
     assert obj.order_id == 31
     assert obj.protocol_id == 53
     assert obj.msg_desc == "Server updating the POI data"
@@ -49,12 +48,11 @@ def test_decode_poi(dml_protocol, dml_update_poi: bytes):
     )
 
 
-def test_decode_correct_loc(dml_protocol, game_messages_correct_loc: bytes):
-    header = PacketHeader(game_messages_correct_loc)
-    obj = dml_protocol.decode_packet(
-        game_messages_correct_loc, header=header, has_ki_header=True
-    )
-    assert obj != None
+def test_decode_correct_loc(
+    dml_protocol: DMLProtocolRegistry, game_messages_correct_loc: bytes
+):
+    obj = dml_protocol.decode_packet(game_messages_correct_loc)
+    assert obj is not None
     assert obj.order_id == 119
     assert obj.protocol_id == 5
     assert obj.msg_desc == "The server is changing the movement state on a mobile"
@@ -65,10 +63,11 @@ def test_decode_correct_loc(dml_protocol, game_messages_correct_loc: bytes):
     assert obj.fields[0].value == 1688849952086067
 
 
-def test_decode_interact_options(dml_protocol, dml_update_poi):
-    header = PacketHeader(dml_update_poi)
-    obj = dml_protocol.decode_packet(dml_update_poi, header=header, has_ki_header=True)
-    assert obj != None
+def test_decode_interact_options(
+    dml_protocol: DMLProtocolRegistry, dml_update_poi: bytes
+):
+    obj = dml_protocol.decode_packet(dml_update_poi)
+    assert obj is not None
     assert obj.order_id == 31
     assert obj.protocol_id == 53
     assert obj.msg_desc == "Server updating the POI data"

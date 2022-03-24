@@ -15,8 +15,7 @@ def control_protocol():
 def test_session_offer(control_protocol: ControlProtocol, control_session_offer):
     header = PacketHeader(control_session_offer)
     message = control_protocol.decode_packet(
-        control_session_offer,
-        header,
+        control_session_offer, header, has_ki_header=True
     )
     assert message.OPCODE == 0
     assert message.session_id == 1419

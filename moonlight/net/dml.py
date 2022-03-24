@@ -3,7 +3,6 @@ Parser for DML message definitions and parsing messages based on them
 """
 
 from __future__ import annotations
-from configparser import NoSectionError
 
 import logging
 import xml.etree.ElementTree
