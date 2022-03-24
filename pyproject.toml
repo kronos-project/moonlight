@@ -14,7 +14,8 @@ include = [
 
 [tool.poetry.dependencies]
 python = "^3.9"
-scapy = "^2.4.5"
+# https://github.com/secdev/scapy/issues/3246 fix isn't on pypi
+scapy = {git = "https://github.com/secdev/scapy.git", rev = "master"}
 black = "^21.12b0"
 pylint = "^2.12.2"
 printrospector = {git = "https://gitlab.com/vale_/printrospector", rev = "main"}
