@@ -11,10 +11,13 @@ from printrospector import BinarySerializer, DynamicObject, TypeCache
 
 
 def build_typecache(path: PathLike) -> TypeCache:
-    raise NotImplementedError
+    with open(path, encoding="utf-8") as file:
+        return TypeCache(json.load(file))
 
+def _str_to_int(val):
+    return val if val is None else int(val)
 
-class ObjectPropertyDecoder:
+class PropertyObjectDecoder:
     """
     Wrapper for printrospector's parser that abstracts needing to deal with
     managing both a serializer and typedef cache
@@ -39,8 +42,8 @@ class ObjectPropertyDecoder:
             typedef_path (PathLike, optional): Path to wizwalker typedefs json
         """
 
-        self.property_mask = property_mask
-        self.flags = flags
+        self.property_mask = _str_to_int(property_mask)
+        self.flags = _str_to_int(flags)
         self.exhaustive = exhaustive
         self.__typedef_path = typedef_path
         self.typecache = typecache
@@ -66,7 +69,11 @@ class ObjectPropertyDecoder:
                 is possible as typedefs are independent entities._
         """
 
-        return self.property_mask and self.exhaustive and self.flags
+        return (
+            self.property_mask is not None
+            and self.exhaustive is not None
+            and self.flags is not None
+        )
 
     def load_typedefs_from_file(self, typedef_path: PathLike):
         """
@@ -91,6 +98,7 @@ class ObjectPropertyDecoder:
         """
         self.typecache = cache
         self.__typedef_path = sourcepath
+        self.serializer = BinarySerializer(self.typecache, self.flags, self.exhaustive)
 
     def can_deserialize(self) -> bool:
         """

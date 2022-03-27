@@ -6,7 +6,7 @@
 from dataclasses import dataclass
 import struct
 from typing import Union
-from .common import BytestreamReader, PacketHeader, PACKET_HEADER_LEN, DMLType 
+from .common import BytestreamReader, PacketHeader, PACKET_HEADER_LEN, DMLType
 
 
 def _unpack_weirdo_timestamp(reader: BytestreamReader):

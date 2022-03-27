@@ -21,7 +21,7 @@ from .common import (
     PacketHeader,
 )
 
-from .object_property import ObjectPropertyDecoder, build_typecache
+from .property_object import PropertyObjectDecoder, build_typecache
 
 SERVICE_ID_SIZE = 1
 MESSAGE_ID_SIZE = 1
@@ -49,7 +49,7 @@ class FieldDef:
     ) -> None:
         self.name = name
         self.dml_type = dml_type
-        self.po_decoder = ObjectPropertyDecoder(
+        self.po_decoder = PropertyObjectDecoder(
             typedef_path=property_object_typedef_path,
             typecache=property_object_typecache,
             flags=property_object_flags,
@@ -123,13 +123,20 @@ class FieldDef:
         Returns:
             FieldDef: representation of the message definition xml
         """
+        exhaustive = node.attrib.get("PO_EXHAUSTIVE")
+        if exhaustive is None:
+            pass
+        elif exhaustive == "TRUE":
+            exhaustive = True
+        else:
+            exhaustive = False
 
         return cls(
             name=node.tag,
             dml_type=DMLType.from_str(node.attrib.get("TYPE")),
-            property_object_flags=DMLType.from_str(node.attrib.get("PO_FLAGS")),
+            property_object_flags=node.attrib.get("PO_FLAGS"),
             property_object_mask=node.attrib.get("PO_MASK"),
-            property_object_exhaustive=node.attrib.get("PO_EXHAUSTIVE"),
+            property_object_exhaustive=exhaustive,
             noxfer=(node.attrib.get("NOXFER") == "TRUE"),
         )
 
@@ -157,7 +164,7 @@ class Field:
             bool: `True` if the field describes a property object
         """
 
-        self.definition.is_property_object()
+        return self.definition.is_property_object()
 
     def as_property_object(self) -> DynamicObject | None:
         """

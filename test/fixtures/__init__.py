@@ -1,5 +1,10 @@
+from os import chdir
 from os.path import *
+from moonlight.net.dml import FieldDef
+from moonlight.net.property_object import build_typecache
+
 import pytest
+import xml.etree.ElementTree as ET
 
 this_folder = dirname(__file__)
 
@@ -12,6 +17,26 @@ def load_to_bytes(*f_path):
 
 def load_packet(*f_path):
     return load_to_bytes(this_folder, "packets", *f_path)
+
+
+@pytest.fixture
+def character_property_object():
+    return load_to_bytes(this_folder, "object_property", "character_data.bin")
+
+
+@pytest.fixture
+def create_character_field_def() -> ET.Element:
+    tree = ET.fromstring(
+        '<CreationInfo TYPE="STR" PO_FLAGS="0" PO_MASK="24" PO_EXHAUSTIVE="false"></CreationInfo>'
+    )
+    return FieldDef.from_xml(tree)
+
+
+@pytest.fixture
+def typecache():
+    return build_typecache(
+        join(this_folder, "object_property", "r707528_Wizard_1_460.json")
+    )
 
 
 @pytest.fixture
