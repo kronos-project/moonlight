@@ -61,7 +61,7 @@ class PacketReader:
         return self.dml_protocol.decode_packet(bites)
 
 
-class PcapReader:
+class PcapReader(PacketReader):
     def __init__(
         self,
         pcap_path: PathLike,
@@ -70,13 +70,11 @@ class PcapReader:
             os.path.dirname(__file__), "..", "..", "res", "dml", "messages"
         ),
     ) -> None:
+        super().__init__(msg_def_folder, typedef_path=typedef_path)
         if not isfile(pcap_path):
             raise ValueError("Provided pcap filepath doesn't exist")
 
         self.pcap_path = pcap_path
-        self.ki_packet_reader = PacketReader(
-            typedef_path=typedef_path, msg_def_folder=msg_def_folder
-        )
         self.pcap_reader = Scapy_PcapReader(filename=pcap_path)
 
     def __iter__(self):
@@ -85,30 +83,13 @@ class PcapReader:
     def __next__(self):
         while True:
             packet = self.pcap_reader.next()
-            if packet.layers()[-1] is not TCP:
-                logging.trace("Capture packet isn't of the KI protocol")
+            if (
+                TCP not in packet.layers()
+                or not isinstance(packet[TCP].payload, Raw)
+                or not bytes(packet[TCP].payload).startswith(b"\x0D\xF0")
+            ):
                 continue
-
-    def decode_packet(self, bites: bytes) -> ControlMessage | DMLMessage:
-        bites = None
-        header = None
-        if isinstance(bites, bytes):
-            reader = BytestreamReader(bites)
-        else:
-            raise ValueError("bites is not of type bytes")
-
-        try:
-            header = PacketHeader(reader)
-        except ValueError:
-            logging.debug("Invalid packet received: bad KI header")
-            return None
-
-        if header.content_is_control != 0:
-            return self.control_protocol.decode_packet(
-                reader, header, original_data=bites
-            )
-
-        return self.dml_protocol.decode_packet(bites)
+            return self.decode_packet(packet[TCP].payload)
 
 
 class LiveSniffer:
@@ -123,7 +104,7 @@ class LiveSniffer:
             f for f in listdir(dml_def_folder) if isfile(join(dml_def_folder, f))
         ]
         protocols = map(lambda x: join(dml_def_folder, x), protocols)
-        self.decoder = PcapReader(msg_def_folder=dml_def_folder)
+        self.decoder = PacketReader(msg_def_folder=dml_def_folder)
 
     def scapy_callback(self, pkt: Packet):
         if type(pkt[TCP].payload) is not Raw:
@@ -134,8 +115,8 @@ class LiveSniffer:
             message = self.decoder.decode_packet(bites)
             logging.info(message)
         except ValueError as err:
-            if err.message.startswith("Not a KI game protocol packet."):
-                logging.trace(err.message)
+            if str(err).startswith("Not a KI game protocol packet."):
+                logging.debug(err)
                 return
             logging.error(f"Cannot parse packet: {traceback.print_exc()}")
 

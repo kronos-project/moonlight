@@ -5,7 +5,7 @@ Parser for DML message definitions and parsing messages based on them
 from __future__ import annotations
 
 import logging
-import xml.etree.ElementTree
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from os import PathLike
 from typing import Any, Dict, List
@@ -111,7 +111,7 @@ class FieldDef:
 
     # TODO: python 11, change to typing.Self
     @classmethod
-    def from_xml(cls, node: xml.etree.ElementTree.Element) -> FieldDef:
+    def from_xml(cls, node: ET.Element) -> FieldDef:
         """
         from_xml generates a `FieldDef` representation of the message from
             the message definition xml file
@@ -141,7 +141,7 @@ class FieldDef:
         )
 
     def __repr__(self) -> str:
-        return f"<FieldDef {self.name}({self.dml_type})>"
+        return f"<FieldDef '{self.name}({self.dml_type})'>"
 
 
 class Field:
@@ -224,7 +224,7 @@ class DMLMessageDef:
     def __init__(
         self,
         protocol: DMLProtocol,
-        xml_def: xml.etree.ElementTree.Element,
+        xml_def: ET.Element,
         order_id: int | None = None,
     ):
         """Initializes a DML message definition from an XML definition
@@ -386,7 +386,6 @@ class DMLProtocol:
         Args:
             filename (str): [Protocol to load]
         """
-        import xml.etree.ElementTree as ET
 
         tree = ET.parse(filename)
         root = tree.getroot()

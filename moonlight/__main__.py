@@ -1,3 +1,6 @@
+# TODO: remove skip-file once ready
+# pylint: skip-file
+
 from os import PathLike
 from typing import PathLike
 from os.path import join, dirname
