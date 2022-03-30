@@ -154,7 +154,6 @@ def filter_pcap(p_in: PathLike, p_out: PathLike):
             packet = reader.next_ki_raw()
             writer.write_packet(packet)
             i += 1
-            breakpoint()
             raise StopIteration
             if i % 100 == 0:
                 print("Filtering in progress. Found %s KI packets so far" % i)
