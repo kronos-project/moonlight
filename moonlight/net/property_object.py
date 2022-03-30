@@ -14,8 +14,10 @@ def build_typecache(path: PathLike) -> TypeCache:
     with open(path, encoding="utf-8") as file:
         return TypeCache(json.load(file))
 
+
 def _str_to_int(val):
     return val if val is None else int(val)
+
 
 class PropertyObjectDecoder:
     """
