@@ -1,4 +1,4 @@
-from .capture import PcapReader, LiveSniffer
+from .capture import PcapReader, LiveSniffer, filter_pcap
 from .control import (
     ControlMessage,
     ControlProtocol,

@@ -182,6 +182,9 @@ class Field:
     def dml_type(self):
         return self.definition.dml_type
 
+    def noxfer(self):
+        return self.definition.noxfer
+
     def __str__(self) -> str:
         if self.is_property_object():
             return f"{self.value} (property object)"

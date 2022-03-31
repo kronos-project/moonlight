@@ -9,11 +9,19 @@ import traceback
 from os import PathLike, listdir
 from os.path import isfile, join
 
+import logging
+
+# scapy on import prints warnings about system interfaces
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+
 from scapy.layers.inet import TCP
 from scapy.packet import Packet, Raw
 from scapy.sendrecv import AsyncSniffer
 from scapy.sessions import TCPSession
 from scapy.utils import PcapReader as Scapy_PcapReader, PcapWriter as Scapy_PcapWriter
+
+# and now let's set that back
+logging.getLogger("scapy.runtime").setLevel(logging.WARNING)
 
 from .common import BytestreamReader, PacketHeader
 from .control import ControlMessage, ControlProtocol
@@ -143,10 +151,10 @@ class LiveSniffer:
         self.stream.stop()
 
 
-def filter_pcap(p_in: PathLike, p_out: PathLike):
+def filter_pcap(p_in: PathLike, p_out: PathLike, compress: bool = False):
     reader = PcapReader(p_in)
-    writer = Scapy_PcapWriter(p_out)
-    logging.info("Filtering file '%s' to ki only traffic ('%s')", p_in, p_out)
+    writer = Scapy_PcapWriter(p_out, gz=compress)
+    logging.info("Filtering pcap to ki traffic only: in=%s, out=%s", p_in, p_out)
     try:
         i = 1
         while True:
@@ -154,11 +162,11 @@ def filter_pcap(p_in: PathLike, p_out: PathLike):
             writer.write(packet)
             i += 1
             if i % 100 == 0:
-                logging.info("Filtering in progress. Found %s KI packets so far" % i)
+                logging.info("Filtering in progress. Found %s KI packets so far", i)
     except StopIteration:
         pass
     except KeyboardInterrupt:
-        print("Cutting filtering short and finalizing")
+        logging.warning("Cutting filtering short and finalizing")
     finally:
         reader.close()
         writer.close()
