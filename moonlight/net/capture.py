@@ -144,7 +144,6 @@ class LiveSniffer:
 
 
 def filter_pcap(p_in: PathLike, p_out: PathLike):
-    print("warning: this does not currently work")
     reader = PcapReader(p_in)
     writer = Scapy_PcapWriter(p_out)
     logging.info("Filtering file '%s' to ki only traffic ('%s')", p_in, p_out)
@@ -152,10 +151,10 @@ def filter_pcap(p_in: PathLike, p_out: PathLike):
         i = 1
         while True:
             packet = reader.next_ki_raw()
-            writer.write_packet(packet)
+            writer.write(packet)
             i += 1
             if i % 100 == 0:
-                print("Filtering in progress. Found %s KI packets so far" % i)
+                logging.info("Filtering in progress. Found %s KI packets so far" % i)
     except StopIteration:
         pass
     except KeyboardInterrupt:
