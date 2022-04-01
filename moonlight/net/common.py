@@ -287,5 +287,8 @@ class PacketHeader:
         if food != 0xF00D:
             raise ValueError("Not a KI game protocol packet. F00D missing.")
 
+    def to_human_dict(self):
+        return vars(self)
+
     def __repr__(self) -> str:
         return f"<PacketHeader content_len={self.content_len} content_is_control={hex(self.content_is_control)} control_opcode={hex(self.control_opcode)}>"

@@ -140,6 +140,21 @@ class FieldDef:
             noxfer=(node.attrib.get("NOXFER") == "TRUE"),
         )
 
+    def to_human_dict(self) -> dict:
+        output = {
+            "name": self.name,
+            "dml_type": self.dml_type.t_name,
+            "noxfer": self.noxfer,
+        }
+        if not self.po_decoder or not self.po_decoder.params_are_complete():
+            return output
+
+        output["po_flags"] = self.po_decoder.flags
+        output["po_exhaustive"] = self.po_decoder.exhaustive
+        output["po_property_mask"] = self.po_decoder.property_mask
+
+        return output
+
     def __repr__(self) -> str:
         return f"<FieldDef '{self.name}({self.dml_type})'>"
 
@@ -185,6 +200,14 @@ class Field:
     def noxfer(self):
         return self.definition.noxfer
 
+    def to_human_dict(self) -> dict:
+        return {
+            "definition": self.definition.to_human_dict(),
+            "value": self.as_property_object()
+            if self.is_property_object()
+            else self.value,
+        }
+
     def __str__(self) -> str:
         if self.is_property_object():
             return f"{self.value} (property object)"
@@ -194,10 +217,11 @@ class Field:
         return f"Field(value={self.value}, field_def={repr(self.definition)})"
 
 
+# FIXME: grab protocol stuff from definition
 @dataclass(init=True, repr=True)
 class DMLMessage:
     fields: List[Field]
-    dml_protocol: DMLProtocol
+    dml_protocol: "DMLProtocol"
     packet_bytes: bytes = None
     protocol_id: int = None
     protocol_desc: str = None
@@ -218,6 +242,19 @@ class DMLMessage:
             if field.name == field_name:
                 return field
         raise AttributeError
+
+    def to_human_dict(self):
+        return {
+            "packet_bytes": self.packet_bytes,
+            "protocol_id": self.protocol_id,
+            "protocol_desc": self.protocol_desc,
+            "order_id": self.order_id,
+            "msg_name": self.msg_name,
+            "msg_desc": self.msg_desc,
+            "source": self.source,
+            "packet_header": self.packet_header.to_human_dict(),
+            "fields": [field.to_human_dict() for field in self.fields],
+        }
 
 
 class DMLMessageDef:

@@ -1,6 +1,7 @@
-from os import PathLike
-import click
 import pathlib
+from os import PathLike
+
+import click
 
 
 @click.group()

@@ -18,12 +18,19 @@ def _unpack_weirdo_timestamp(reader: BytestreamReader):
     return struct.unpack("<Q", bitstring)[0]
 
 
+# FIXME: session id is for all control and should be here
 @dataclass(init=True, repr=True)
 class ControlMessage:
     OPCODE = None
 
     packet_header: PacketHeader
     original_bytes: bytes
+
+    def to_human_dict(self):
+        return {
+            "packet_header": self.packet_header.to_human_dict(),
+            "original_bytes": self.original_bytes,
+        }
 
 
 @dataclass(init=True, repr=True)
@@ -64,6 +71,11 @@ class SessionOfferMessage(ControlMessage):
             signed_msg_len=signed_msg_len,
             signed_msg=signed_msg,
         )
+
+    def to_human_dict(self):
+        data = vars(self)
+        data.update(super().to_human_dict())
+        return data
 
 
 @dataclass(init=True, repr=True)
@@ -108,13 +120,16 @@ class SessionAcceptMessage(ControlMessage):
             signed_msg=signed_message,
         )
 
+    def to_human_dict(self):
+        data = vars(self)
+        data.update(super().to_human_dict())
+        return data
+
 
 @dataclass(init=True, repr=True)
 class KeepAliveMessage(ControlMessage):
     OPCODE = 0x3
 
-    packet_header: PacketHeader
-    original_bytes: bytes
     session_id: int
     variable_timestamp: bytes
 
@@ -128,6 +143,11 @@ class KeepAliveMessage(ControlMessage):
     def client_min_into_session(self):
         # bytes 3-4 hold if from client
         return BytestreamReader(self.variable_timestamp[2:]).read(DMLType.UINT16)
+
+    def to_human_dict(self):
+        data = vars(self)
+        data.update(super().to_human_dict())
+        return data
 
     @classmethod
     def from_bytes(

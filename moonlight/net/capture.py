@@ -7,25 +7,25 @@ import os
 import sys
 import traceback
 from os import PathLike, listdir
-from os.path import isfile, join
-
-import logging
-
-# scapy on import prints warnings about system interfaces
-logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+from os.path import abspath, isfile, join
 
 from scapy.layers.inet import TCP
 from scapy.packet import Packet, Raw
 from scapy.sendrecv import AsyncSniffer
 from scapy.sessions import TCPSession
-from scapy.utils import PcapReader as Scapy_PcapReader, PcapWriter as Scapy_PcapWriter
-
-# and now let's set that back
-logging.getLogger("scapy.runtime").setLevel(logging.WARNING)
+from scapy.utils import PcapReader as Scapy_PcapReader
+from scapy.utils import PcapWriter as Scapy_PcapWriter
 
 from .common import BytestreamReader, PacketHeader
 from .control import ControlMessage, ControlProtocol
 from .dml import DMLMessage, DMLProtocolRegistry
+
+# scapy on import prints warnings about system interfaces
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+
+
+# and now let's set that back
+logging.getLogger("scapy.runtime").setLevel(logging.WARNING)
 
 
 def is_ki_packet_naive(packet: Packet):
@@ -60,7 +60,7 @@ class PacketReader:
         if isinstance(bites, bytes):
             reader = BytestreamReader(bites)
         else:
-            raise ValueError("bites is not of type bytes")
+            raise ValueError(f"bites is not of type bytes. Found {type(bites)}")
 
         try:
             header = PacketHeader(reader)
@@ -90,7 +90,7 @@ class PcapReader(PacketReader):
             raise ValueError("Provided pcap filepath doesn't exist")
 
         self.pcap_path = pcap_path
-        self.pcap_reader = Scapy_PcapReader(filename=pcap_path)
+        self.pcap_reader = Scapy_PcapReader(filename=str(pcap_path))
 
     def __iter__(self):
         return self
@@ -103,10 +103,16 @@ class PcapReader(PacketReader):
             return packet
 
     def __next__(self):
-        return self.decode_packet(self.next_ki_raw()[TCP].payload)
+        return self.decode_packet(bytes(self.next_ki_raw()[TCP].payload))
 
     def close(self):
         self.pcap_reader.close()
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
 
 class LiveSniffer:

@@ -3,7 +3,7 @@ from os.path import join, dirname
 
 import click
 
-from moonlight.cli import pcap
+from moonlight.cli import pcap, decode
 
 
 @click.group()
@@ -12,6 +12,7 @@ def cli_cmd():
 
 
 pcap.register(cli_cmd)
+decode.register(cli_cmd)
 
 if __name__ == "__main__":
     cli_cmd()
