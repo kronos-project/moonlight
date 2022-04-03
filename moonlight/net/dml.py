@@ -202,10 +202,10 @@ class Field:
 
     def to_human_dict(self) -> dict:
         return {
-            "definition": self.definition.to_human_dict(),
             "value": self.as_property_object()
             if self.is_property_object()
             else self.value,
+            "definition": self.definition.to_human_dict(),
         }
 
     def __str__(self) -> str:
@@ -245,15 +245,15 @@ class DMLMessage:
 
     def to_human_dict(self):
         return {
-            "packet_bytes": self.packet_bytes,
+            "msg_name": self.msg_name,
+            "msg_desc": self.msg_desc,
             "protocol_id": self.protocol_id,
             "protocol_desc": self.protocol_desc,
             "order_id": self.order_id,
-            "msg_name": self.msg_name,
-            "msg_desc": self.msg_desc,
             "source": self.source,
             "packet_header": self.packet_header.to_human_dict(),
             "fields": [field.to_human_dict() for field in self.fields],
+            "packet_bytes": self.packet_bytes,
         }
 
 

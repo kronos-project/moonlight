@@ -63,7 +63,9 @@ def human(
         # TODO: write metadata
         for msg in rdr:
             writer.write("---\n")
-            yaml.dump(msg.to_human_dict(), writer, default_flow_style=False)
+            yaml.dump(
+                msg.to_human_dict(), writer, default_flow_style=False, sort_keys=False
+            )
             writer.write("\n")
     rdr.close()
 
