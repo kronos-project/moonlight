@@ -1,7 +1,12 @@
 from pathlib import Path
+import logging
+import sys
+import base64
 
 import click
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -10,7 +15,7 @@ def decode():
     Decoding messages and captures
 
     Decoding individual messages and wireshark PCAP files into a human-readable
-      format.
+    format.
     """
 
 
@@ -33,20 +38,23 @@ def decode():
     default=None,
     type=click.Path(file_okay=True, exists=True, resolve_path=True, path_type=Path),
 )
-def human(
+def pcap(
     message_def_dir: Path,
     input_f: Path,
     output_f: Path,
     typedefs: Path,
 ):
     """
-    Filter content of pcap files
+    Decode pcap to human-readable YAML
 
-    Filter takes compatible packet capture files (wireshark) and removes all
-      packets that aren't part of the KI network protocol, greatly reducing the
-      size of packet captures. Optionally compresses output files as well.
+    `moonlight decode pcap` takes a compatible packet capture file (wireshark) and converts all
+    unencrypted KI packets within it into a representation intended
+    to be easily read by a human. By default, this is YAML.
+
     A packet is naively considered to be of the KI protocol if it starts with
-      the \\x0D\\xF0 magic (little endian F00D). This may be improved in the future.
+    the \\x0D\\xF0 magic (little endian F00D). This may be improved in the future.
+
+    MSG_DEF_DIR: Directory holding KI DML definitions
 
     INPUT_F: A valid packet capture file containing KI network traffic
 
@@ -57,20 +65,110 @@ def human(
     from moonlight.net import PcapReader  # pylint: disable=import-outside-toplevel
 
     rdr = PcapReader(
-        pcap_path=input_f, typedef_path=typedefs, msg_def_folder=message_def_dir
+        pcap_path=input_f,
+        typedef_path=typedefs,
+        msg_def_folder=message_def_dir,
+        silence_decode_errors=True,
     )
     with open(output_f, "w+t", encoding="utf8") as writer:
         # TODO: write metadata
-        for msg in rdr:
-            writer.write("---\n")
-            yaml.dump(
-                msg.to_human_dict(), writer, default_flow_style=False, sort_keys=False
-            )
+        for i, msg in enumerate(rdr, start=1):
+            writer.write(f"---\n# {i}\n")
+            if msg is None:
+                yaml.dump({"error": "failed to decode packet"}, writer)
+            else:
+                yaml.dump(
+                    msg.to_human_dict(),
+                    writer,
+                    default_flow_style=False,
+                    sort_keys=False,
+                )
             writer.write("\n")
+            if i % 100 == 0:
+                logger.info("Progress: completed %d so far", i)
+
     rdr.close()
 
 
-decode.add_command(human)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+@click.command()
+@click.argument(
+    "message_def_dir",
+    type=click.Path(exists=True, dir_okay=True, resolve_path=True, path_type=Path),
+)
+@click.option(
+    "-i",
+    "--input",
+    default=None,
+    help="Instead of reading from stdin, use this value as the input",
+)
+@click.option(
+    "-t",
+    "--typedefs",
+    default=None,
+    type=click.Path(file_okay=True, exists=True, resolve_path=True, path_type=Path),
+    help="Path to wizwalker typedef json",
+)
+@click.option(
+    "-F",
+    "--in-fmt",
+    default="raw",
+    show_default=True,
+    type=click.Choice(["base64", "raw", "hex"]),
+    help="Format of the input packet data",
+)
+@click.option(
+    "--out-fmt",
+    default="yaml",
+    show_default=True,
+    type=click.Choice(["yaml"]),
+    help="Format of the output human representation",
+)
+def packet(
+    message_def_dir: Path, input: str, typedefs: Path, in_fmt: str, out_fmt: str
+):
+    """
+    Decodes packet from stdin
+
+    Takes a variety of encoding formats of KI packets and converts them into
+    a supported human-readable format.
+
+    MSG_DEF_DIR: Directory holding KI DML definitions
+    """
+
+    if input is None:
+        input = sys.stdin.buffer.read()
+
+    if in_fmt == "base64":
+        input = base64.decodebytes(input.replace(" ", "").replace("\n", ""))
+    elif in_fmt == "hex":
+        input = bytes.fromhex(input.replace(" ", "").replace("\n", ""))
+
+    # lazy load since scapy is kinda heavy
+    from moonlight.net import PacketReader  # pylint: disable=import-outside-toplevel
+
+    rdr = PacketReader(
+        typedef_path=typedefs,
+        msg_def_folder=message_def_dir,
+    )
+    # TODO: write metadata
+    msg = rdr.decode_packet(input)
+    print()
+    if msg is None:
+        yaml.dump({"error": "failed to decode packet"}, sys.stdout)
+    else:
+        yaml.dump(
+            msg.to_human_dict(),
+            sys.stdout,
+            default_flow_style=False,
+            sort_keys=False,
+        )
+
+
+decode.add_command(pcap)
+decode.add_command(packet)
 
 
 def register(group: click.Group):

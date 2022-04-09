@@ -1,10 +1,10 @@
+import xml.etree.ElementTree as ET
 from os import chdir
 from os.path import *
-from moonlight.net.dml import FieldDef
-from moonlight.net.property_object import build_typecache
 
 import pytest
-import xml.etree.ElementTree as ET
+from moonlight.net.dml import FieldDef
+from moonlight.net.property_object import build_typecache
 
 this_folder = dirname(__file__)
 

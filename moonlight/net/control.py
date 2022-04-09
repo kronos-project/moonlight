@@ -3,9 +3,9 @@
 """
 
 
+from argparse import ArgumentError
 from dataclasses import dataclass
 import struct
-from typing import Union
 from .common import BytestreamReader, PacketHeader, PACKET_HEADER_LEN, DMLType
 
 
@@ -25,9 +25,12 @@ class ControlMessage:
 
     packet_header: PacketHeader
     original_bytes: bytes
+    session_id: int
 
     def to_human_dict(self):
         return {
+            "_msg_name": type(self).__name__,
+            "session_id": self.session_id,
             "packet_header": self.packet_header.to_human_dict(),
             "original_bytes": self.original_bytes,
         }
@@ -37,7 +40,6 @@ class ControlMessage:
 class SessionOfferMessage(ControlMessage):
     OPCODE = 0x0
 
-    session_id: int
     unix_timestamp_seconds: int
     unix_timestamp_millis_into_second: int
     signed_msg_len: int
@@ -73,9 +75,13 @@ class SessionOfferMessage(ControlMessage):
         )
 
     def to_human_dict(self):
-        data = vars(self)
-        data.update(super().to_human_dict())
-        return data
+        return {
+            "sec_timestamp": self.unix_timestamp_seconds,
+            "millis_into_sec_timestamp": self.unix_timestamp_millis_into_second,
+            "signed_msg_len": self.signed_msg_len,
+            "signed_msg": self.signed_msg,
+            **super().to_human_dict(),
+        }
 
 
 @dataclass(init=True, repr=True)
@@ -130,7 +136,6 @@ class SessionAcceptMessage(ControlMessage):
 class KeepAliveMessage(ControlMessage):
     OPCODE = 0x3
 
-    session_id: int
     variable_timestamp: bytes
 
     def server_millis_since_start(self):
@@ -145,9 +150,13 @@ class KeepAliveMessage(ControlMessage):
         return BytestreamReader(self.variable_timestamp[2:]).read(DMLType.UINT16)
 
     def to_human_dict(self):
-        data = vars(self)
-        data.update(super().to_human_dict())
-        return data
+        return {
+            "variable_timestamp": self.variable_timestamp,
+            "_client_min_into_session": self.client_min_into_session(),
+            "_client_millis_into_second": self.client_millis_into_second(),
+            "_server_millis_since_start": self.server_millis_since_start(),
+            **super().to_human_dict(),
+        }
 
     @classmethod
     def from_bytes(
@@ -163,7 +172,7 @@ class KeepAliveMessage(ControlMessage):
             reader.advance(PACKET_HEADER_LEN)
 
         session_id = reader.read(DMLType.UINT16)
-        variable_timestamp = reader.read(DMLType.UINT32)
+        variable_timestamp = reader.read_raw(4)
 
         return cls(
             original_bytes=original_data,
@@ -184,43 +193,67 @@ class KeepAliveResponseMessage(KeepAliveMessage):
 
 
 class ControlProtocol:
+    """
+    ControlProtocol Decoder capable of reading control messages from the Kingsisle Protocol
+      These messages must be decrypted in order to be processed.
+    """
+
     def decode_packet(
         self,
-        reader: BytestreamReader | bytes,
+        bites: BytestreamReader | bytes,
         header: PacketHeader,
         original_data: bytes = None,
         has_ki_header: bool = True,
     ) -> ControlMessage:
+        """
+        decode_packet decodes a bytestring and represented header into its
+          corresponding `ControlMessage`
+
+        Args:
+            bites (BytestreamReader | bytes): bytestring containing packet data
+            header (PacketHeader): _description_
+            original_data (bytes, optional): _description_. Defaults to None.
+            has_ki_header (bool, optional): _description_. Defaults to True.
+
+        Raises:
+            ArgumentError: _description_
+            ArgumentError: _description_
+
+        Returns:
+            ControlMessage: _description_
+        """
         if not header.content_is_control:
-            return None
+            raise ArgumentError(
+                header, message="PacketHeader is not for control packet"
+            )
         opcode = header.control_opcode
         if opcode == SessionOfferMessage.OPCODE:
             return SessionOfferMessage.from_bytes(
                 packet_header=header,
-                reader=reader,
+                reader=bites,
                 original_bytes=original_data,
                 has_ki_header=has_ki_header,
             )
         if opcode == SessionAcceptMessage.OPCODE:
             return SessionAcceptMessage.from_bytes(
                 packet_header=header,
-                reader=reader,
+                reader=bites,
                 original_data=original_data,
                 has_ki_header=has_ki_header,
             )
         if opcode == KeepAliveMessage.OPCODE:
             return KeepAliveMessage.from_bytes(
                 packet_header=header,
-                reader=reader,
+                reader=bites,
                 original_data=original_data,
                 has_ki_header=has_ki_header,
             )
         if opcode == KeepAliveResponseMessage.OPCODE:
             return KeepAliveResponseMessage.from_bytes(
                 packet_header=header,
-                reader=reader,
+                reader=bites,
                 original_data=original_data,
                 has_ki_header=has_ki_header,
             )
 
-        return None
+        raise ArgumentError(header, message=f"Unrecognized opcode: {opcode}")

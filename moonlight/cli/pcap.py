@@ -7,9 +7,10 @@ import click
 @click.group()
 def pcap():
     """
-    Packet capture utilities
+    Packet capture manipulation
 
-    Commands revolving around the manipulation and processing of PCAP files
+    Commands revolving around the manipulation and processing of PCAP files.
+    Decoding PCAP files can be found within the `moonlight decode` subcommand.
     """
 
 
@@ -25,7 +26,11 @@ def pcap():
     type=click.Path(file_okay=True, resolve_path=True, path_type=pathlib.Path),
 )
 @click.option(
-    "-z/-Z", "--zip/--no-zip", default=False, help="Output file compression via gzip"
+    "-z/-Z",
+    "--zip/--no-zip",
+    default=False,
+    show_default=True,
+    help="Output file compression via gzip",
 )
 def filter_cmd(
     input_f: PathLike, output_f: PathLike, zip: bool

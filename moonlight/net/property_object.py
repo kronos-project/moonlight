@@ -9,6 +9,8 @@ from os import PathLike
 
 from printrospector import BinarySerializer, DynamicObject, TypeCache
 
+logger = logging.getLogger(__name__)
+
 
 def build_typecache(path: PathLike) -> TypeCache:
     with open(path, encoding="utf-8") as file:
@@ -51,7 +53,7 @@ class PropertyObjectDecoder:
         self.typecache = typecache
         self.serializer = None
         if typecache and typedef_path:
-            logging.warning(
+            logger.warning(
                 "Both TypeCache and path to typedef.json were "
                 "provided to field. Using provided TypeCache first."
             )

@@ -15,6 +15,13 @@ PACKET_HEADER_LEN = 8
 DML_HEADER_LEN = 2
 
 
+class HumanReadableMixin:
+    """ """
+
+    def human_dict(self) -> dict:
+        vars(self)
+
+
 class DMLType(Enum):
     """Bit types used by the KI network protocol.
 
@@ -129,9 +136,6 @@ class BytestreamReader:
             return self.__peek_stream(length)
         return self.stream.read(length)
 
-    def at_packet_terminate(self):
-        return self.bytes_remaining() == 1 and self.read_raw(1) == b"\x00"
-
     def __simple_read(self, dml_type: DMLType, peek=False) -> Any:
         """
         __simple_read reads DMLTypes that are always the same size and
@@ -170,30 +174,30 @@ class BytestreamReader:
         self.stream.seek(pos)
         return b
 
-    # FIXME peek doesn't work on strings
-    # FIXME refactor to just return bytes. Most things dont use strings
-    def __str_read(self, peek=False, decode: bool = True):
+    def __str_read(self, peek=False):
+        buffer_pos = self.buffer_position()
         str_len = self.__simple_read(DMLType.USHRT, peek=peek)
         if str_len > 0:
             bites = self.stream.read(str_len)
         else:
             bites = b""
 
-        if not decode:
-            return bites
-        try:
-            return bytes.decode("utf-8")
-        except:  # pylint: disable=bare-except
-            return bites
+        if peek:
+            self.stream.seek(buffer_pos)
+        return bites
 
     # TODO: this is a weird scenario. Is it always text? Binary?
     def __wstr_read(self, peek=False):
+        buffer_pos = self.buffer_position()
         str_len = self.__simple_read(DMLType.USHRT, peek=peek)
         bites = self.stream.read(str_len)
         try:
             return bytes.decode("utf-16-le")
         except:  # pylint: disable=bare-except
             return bites
+        finally:
+            if peek:
+                self.stream.seek(buffer_pos)
 
     def advance(self, length: int):
         """
@@ -238,6 +242,12 @@ class BytestreamReader:
 
     def bytes_remaining(self):
         return self.stream.getbuffer().nbytes - self.stream.tell()
+
+    def buffer_position(self):
+        return self.stream.tell()
+
+    def get_buffer(self):
+        return self.stream.getbuffer()
 
     def __str__(self):
         return f"BytestreamReader(UINT8: {self.read(DMLType.UINT8, peek=True)}, UINT16: {self.read(DMLType.UINT16, peek=True)}, BYT: {hex(self.read(DMLType.BYT, peek=True))})"

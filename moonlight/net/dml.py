@@ -26,6 +26,8 @@ from .property_object import PropertyObjectDecoder, build_typecache
 SERVICE_ID_SIZE = 1
 MESSAGE_ID_SIZE = 1
 
+logger = logging.getLogger(__name__)
+
 
 class FieldDef:
     """
@@ -305,7 +307,7 @@ class DMLMessageDef:
             dirty_type = dirty_type or xml_field.attrib.get("TPYE")
             if dirty_type is None:
                 # how does this even work in the live game?!
-                logging.warning(
+                logger.warning(
                     "A DML field was found without a type. "
                     "Since there's only one known place this happens in the "
                     "current files, assuming it's the GlobalID missing the GID type"
@@ -314,7 +316,7 @@ class DMLMessageDef:
                 assert field_map["name"] == "GlobalID"
                 field_map["dml_type"] = DMLType.GID
             elif dirty_type == "UBYTE":
-                # again, i don't understand how these even work ingame
+                # again, i don't understand how these even work in-game
                 field_map["dml_type"] = DMLType.UBYT
             else:
                 field_map["dml_type"] = DMLType.from_str(dirty_type)
@@ -448,7 +450,7 @@ class DMLProtocol:
         self.message_map = DMLMessageDef.list_to_id_map(message_defs)
 
     def __init__(self, filename: PathLike | None = None) -> None:
-        self.id: int = None
+        self.id: int = None  # pylint: disable=invalid-name
         self.type: str = None
         self.version: int = None
         self.description: str = None
@@ -482,7 +484,7 @@ class DMLProtocol:
         if has_protocol_id:
             service_id = bites.read(DMLType.UBYT)
             if service_id != self.id:
-                raise Exception("Invalid protocol for this message")
+                raise ValueError(bites, "Invalid protocol for this message")
 
         message_id: int = bites.read(DMLType.UBYT)
         message_len: int = bites.read(DMLType.USHRT)
@@ -491,15 +493,15 @@ class DMLProtocol:
                 bites, packet_bytes=original_bites
             )
         except ValueError as err:
-            logging.error(
-                "Failed to decode message. "
-                f'err: "{err}" '
-                f"protocol_id: {self.id}, "
-                f"msg_id: {self.message_map[message_id]}, "
-                f"packet_data (optional): [{original_bites}]"
+            logger.error(
+                'Failed to decode message. err: "%s", protocol_id: %d, msg_id: %d, packet_data (optional): [%s]',
+                err,
+                self.id,
+                self.message_map[message_id],
+                original_bites,
             )
             return None
-        if dml_object != None:
+        if dml_object is not None:
             dml_object.protocol_id = self.id
             dml_object.protocol_desc = self.description
         return dml_object
@@ -522,9 +524,9 @@ class DMLProtocolRegistry:
 
     def load_service(self, protocol_file):
         protocol = DMLProtocol(protocol_file)
-        logging.info(f"loaded protocol {protocol.id}: {protocol.description}")
+        logger.debug("loaded protocol %d: %s", protocol.id, protocol.description)
         for msg in protocol.message_map.values():
-            logging.debug(f"\t{repr(msg)}")
+            logger.debug("\t%s", repr(msg))
         self.protocol_map[protocol.id] = protocol
 
     def get_by_id(self, id: int):

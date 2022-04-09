@@ -4,11 +4,13 @@
 
 import logging
 import os
-import sys
 import traceback
 from os import PathLike, listdir
-from os.path import abspath, isfile, join
+from os.path import isfile, join
 
+# scapy on import prints warnings about system interfaces
+# pylint: disable=wrong-import-position
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.layers.inet import TCP
 from scapy.packet import Packet, Raw
 from scapy.sendrecv import AsyncSniffer
@@ -16,16 +18,16 @@ from scapy.sessions import TCPSession
 from scapy.utils import PcapReader as Scapy_PcapReader
 from scapy.utils import PcapWriter as Scapy_PcapWriter
 
+# and now let's set that back
+logging.getLogger("scapy.runtime").setLevel(logging.WARNING)
+# pylint: enable=wrong-import-position
+
 from .common import BytestreamReader, PacketHeader
 from .control import ControlMessage, ControlProtocol
 from .dml import DMLMessage, DMLProtocolRegistry
 
-# scapy on import prints warnings about system interfaces
-logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
-
-# and now let's set that back
-logging.getLogger("scapy.runtime").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 
 def is_ki_packet_naive(packet: Packet):
@@ -41,8 +43,10 @@ class PacketReader:
         self,
         msg_def_folder: PathLike,
         typedef_path: PathLike = None,
+        silence_decode_errors: bool = False,
     ):
         self.msg_def_folder = msg_def_folder
+        self.silence_decode_errors = silence_decode_errors
 
         # Load dml decoder
         dml_services = [
@@ -56,24 +60,46 @@ class PacketReader:
         # Load control decoder
         self.control_protocol: ControlProtocol = ControlProtocol()
 
-    def decode_packet(self, bites: bytes) -> ControlMessage | DMLMessage:
+    def _handle_decode_exc(self, exc, original_bytes):
+        if self.silence_decode_errors:
+            logger.debug(
+                "An error occurred while attempting to decode a packet. Original bytes are %s",
+                original_bytes,
+            )
+            return
+        raise ValueError(
+            "Invalid packet data or message definitions", original_bytes
+        ) from exc
+
+    def decode_packet(self, bites: bytes) -> list[ControlMessage | DMLMessage]:
         if isinstance(bites, bytes):
             reader = BytestreamReader(bites)
         else:
             raise ValueError(f"bites is not of type bytes. Found {type(bites)}")
 
+        packets: list[ControlMessage | DMLMessage] = []
         try:
             header = PacketHeader(reader)
-        except ValueError:
-            logging.debug("Invalid packet received: bad KI header")
-            return None
+            # 4 bytes remain in what we consider the header but KI doesn't
+            if header.content_len < reader.bytes_remaining() + 4:
+                logger.warning(
+                    "Provided packet bytes contain more than KI's framing "
+                    "expected. There may be more than one message in this packet "
+                    "which is not yet supported. Expected %d, found %d",
+                    header.content_len,
+                    reader.bytes_remaining(),
+                )
+                # packets.extend(self.decode_packet(bites[:]))
 
-        if header.content_is_control != 0:
-            return self.control_protocol.decode_packet(
-                reader, header, original_data=bites
-            )
+            if header.content_is_control != 0:
+                return self.control_protocol.decode_packet(
+                    reader, header, original_data=bites
+                )
+            return self.dml_protocol.decode_packet(bites)
 
-        return self.dml_protocol.decode_packet(bites)
+        except ValueError as exc:  # pylint: disable=broad-except
+            # error handling and returns are dependent on reader settings
+            return self._handle_decode_exc(exc, bites)
 
 
 class PcapReader(PacketReader):
@@ -84,8 +110,13 @@ class PcapReader(PacketReader):
         msg_def_folder: PathLike = os.path.join(
             os.path.dirname(__file__), "..", "..", "res", "dml", "messages"
         ),
+        silence_decode_errors: bool = False,
     ) -> None:
-        super().__init__(msg_def_folder, typedef_path=typedef_path)
+        super().__init__(
+            msg_def_folder,
+            typedef_path=typedef_path,
+            silence_decode_errors=silence_decode_errors,
+        )
         if not isfile(pcap_path):
             raise ValueError("Provided pcap filepath doesn't exist")
 
@@ -135,12 +166,12 @@ class LiveSniffer:
         try:
             bites = bytes(pkt[TCP].payload)
             message = self.decoder.decode_packet(bites)
-            logging.info(message)
+            logger.info(message)
         except ValueError as err:
             if str(err).startswith("Not a KI game protocol packet."):
-                logging.debug(err)
+                logger.debug(err)
                 return
-            logging.error("Cannot parse packet: %s", traceback.print_exc())
+            logger.error("Cannot parse packet: %s", traceback.print_exc())
 
     def open_livestream(self):
         self.stream = AsyncSniffer(
@@ -148,9 +179,9 @@ class LiveSniffer:
             session=TCPSession,
             prn=self.scapy_callback,
         )
-        logging.info("Starting sniffer")
+        logger.info("Starting sniffer")
         self.stream.start()
-        logging.info("Waiting for end signal")
+        logger.info("Waiting for end signal")
         self.stream.join()
 
     def close_livestream(self):
@@ -160,7 +191,7 @@ class LiveSniffer:
 def filter_pcap(p_in: PathLike, p_out: PathLike, compress: bool = False):
     reader = PcapReader(p_in)
     writer = Scapy_PcapWriter(p_out, gz=compress)
-    logging.info("Filtering pcap to ki traffic only: in=%s, out=%s", p_in, p_out)
+    logger.info("Filtering pcap to ki traffic only: in=%s, out=%s", p_in, p_out)
     try:
         i = 1
         while True:
@@ -168,29 +199,11 @@ def filter_pcap(p_in: PathLike, p_out: PathLike, compress: bool = False):
             writer.write(packet)
             i += 1
             if i % 100 == 0:
-                logging.info("Filtering in progress. Found %s KI packets so far", i)
+                logger.info("Filtering in progress. Found %s KI packets so far", i)
     except StopIteration:
         pass
     except KeyboardInterrupt:
-        logging.warning("Cutting filtering short and finalizing")
+        logger.warning("Cutting filtering short and finalizing")
     finally:
         reader.close()
         writer.close()
-
-
-if __name__ == "__main__":
-    logging.basicConfig(
-        # format="[%(asctime)s] %(levelname)s: %(message)s",
-        format="%(message)s",
-        datefmt="%H:%M:%S",
-        level=logging.DEBUG,
-        handlers=[
-            # logging.FileHandler(os.path.join(os.path.dirname(__file__), '..', 'log', 'out.log')),
-            logging.StreamHandler(sys.stdout),
-        ],
-    )
-    print("hi")
-    s = LiveSniffer()
-    print("Opening packet stream")
-
-    s.open_livestream()
