@@ -18,6 +18,7 @@ from .common import (
     PACKET_HEADER_LEN,
     BytestreamReader,
     DMLType,
+    HumanReprMixin,
     PacketHeader,
 )
 
@@ -29,12 +30,14 @@ MESSAGE_ID_SIZE = 1
 logger = logging.getLogger(__name__)
 
 
-class FieldDef:
+class FieldDef(HumanReprMixin):
     """
     Definition of a DML field within a message. Used to hold the represented
     xml from message definition files as well as property object decoding
     information.
     """
+
+    HUMAN_REPR_IGNORE = "po_decoder"
 
     # FIXME reduce number of fields. It's okay for now since this isn't
     # part of the public api.
@@ -142,13 +145,14 @@ class FieldDef:
             noxfer=(node.attrib.get("NOXFER") == "TRUE"),
         )
 
-    def to_human_dict(self) -> dict:
+    def to_human_dict(self, compact=False) -> dict[str, Any] | str:
         output = {
             "name": self.name,
             "dml_type": self.dml_type.t_name,
-            "noxfer": self.noxfer,
         }
-        if not self.po_decoder or not self.po_decoder.params_are_complete():
+        if not compact:
+            output["noxfer"] = self.noxfer
+        if compact or not self.po_decoder or not self.po_decoder.params_are_complete():
             return output
 
         output["po_flags"] = self.po_decoder.flags
@@ -161,13 +165,25 @@ class FieldDef:
         return f"<FieldDef '{self.name}({self.dml_type})'>"
 
 
-class Field:
+class Field(HumanReprMixin):
     """
     Specific instance of a DML field as defined by its `FieldDef`.
 
     Fields representing object property objects are not automatically
     unserialized. To get the represented property object, use `as_property_object`
     """
+
+    HUMAN_REPR_IGNORE = ("value", "definition")
+    HUMAN_REPR_COMPACT_IGNORE = "noxfer"
+    HUMAN_REPR_ORDER = ("name", "value", "dml_type")
+    HUMAN_REPR_SYNTHETIC = {
+        "value": lambda x: x.as_property_object()
+        if x.is_property_object()
+        else x.value,
+        "name": lambda x: x.name(),
+        "dml_type": lambda x: x.dml_type().as_human_dict(),
+        "noxfer": lambda x: x.noxfer(),
+    }
 
     def __init__(self, value: Any, field_def: FieldDef) -> None:
         self.value = value
@@ -210,6 +226,12 @@ class Field:
             "definition": self.definition.to_human_dict(),
         }
 
+    def as_human_dict(self, compact=True) -> dict[str, Any] | str:
+        human_dict = super().as_human_dict(compact)
+        if self.is_property_object():
+            human_dict["value"] = self.as_property_object()
+        return human_dict
+
     def __str__(self) -> str:
         if self.is_property_object():
             return f"{self.value} (property object)"
@@ -221,17 +243,45 @@ class Field:
 
 # FIXME: grab protocol stuff from definition
 @dataclass(init=True, repr=True)
-class DMLMessage:
+class DMLMessage(HumanReprMixin):
+    HUMAN_REPR_IGNORE = "dml_protocol"
+    HUMAN_REPR_SYNTHETIC = {
+        "protocol_id": lambda x: x.protocol().id,
+        "protocol_description": lambda x: x.protocol().description,
+        "name": lambda x: x.name(),
+        "description": lambda x: x.description(),
+    }
+    HUMAN_REPR_COMPACT_IGNORE = (
+        "protocol" "protocol_id",
+        "protocol_desc",
+        "order_id",
+        "header",
+        "header",
+    )
+    HUMAN_REPR_ORDER = (
+        "name",
+        "desc",
+        "protocol_id",
+        "protocol_desc",
+        "order_id",
+        "fields",
+    )
+
     fields: List[Field]
-    dml_protocol: "DMLProtocol"
-    packet_bytes: bytes = None
-    protocol_id: int = None
-    protocol_desc: str = None
+    definition: DMLMessageDef
+    original_bytes: bytes = None
     order_id: int = None
-    msg_name: str = None
-    msg_desc: str = None
     source: str = None
-    packet_header: PacketHeader = None
+    header: PacketHeader = None
+
+    def name(self):
+        return self.definition.name
+
+    def desc(self):
+        return self.definition.desc
+
+    def protocol(self):
+        return self.definition.protocol
 
     def get_val(self, field_name):
         for field in self.fields:
@@ -245,21 +295,8 @@ class DMLMessage:
                 return field
         raise AttributeError
 
-    def to_human_dict(self):
-        return {
-            "msg_name": self.msg_name,
-            "msg_desc": self.msg_desc,
-            "protocol_id": self.protocol_id,
-            "protocol_desc": self.protocol_desc,
-            "order_id": self.order_id,
-            "source": self.source,
-            "packet_header": self.packet_header.to_human_dict(),
-            "fields": [field.to_human_dict() for field in self.fields],
-            "packet_bytes": self.packet_bytes,
-        }
 
-
-class DMLMessageDef:
+class DMLMessageDef(HumanReprMixin):
     """Defines a DML interface message and its structure.
     Provides a deserializer for the represented message."""
 
@@ -367,17 +404,11 @@ class DMLMessageDef:
             for field_def in self.fields
         ]
 
-        # TODO check this assumption?
-        # if not reader.at_packet_terminate():
-        #     raise ValueError("packet did not end with a null byte")
-
         return DMLMessage(
             decoded_fields,
-            dml_protocol=self.protocol,
-            packet_bytes=packet_bytes,
+            definition=self,
+            original_bytes=packet_bytes,
             order_id=self.order_id,
-            msg_desc=self.desc,
-            msg_name=self.name,
         )
 
     def __str__(self) -> str:
@@ -438,7 +469,7 @@ class DMLProtocol:
         self.id = int(metadata_block.find("ServiceID").text)
         self.type = metadata_block.find("ProtocolType").text
         self.version = int(metadata_block.find("ProtocolVersion").text)
-        self.description = metadata_block.find("ProtocolDescription").text
+        self.desc = metadata_block.find("ProtocolDescription").text
 
         message_defs.extend(
             DMLMessageDef(protocol=self, xml_def=block)
@@ -453,7 +484,7 @@ class DMLProtocol:
         self.id: int = None  # pylint: disable=invalid-name
         self.type: str = None
         self.version: int = None
-        self.description: str = None
+        self.desc: str = None
         self.message_map: Dict[int, DMLMessageDef] = {}
         if filename:
             self.parse_dml_file(filename)
@@ -503,7 +534,7 @@ class DMLProtocol:
             return None
         if dml_object is not None:
             dml_object.protocol_id = self.id
-            dml_object.protocol_desc = self.description
+            dml_object.protocol_desc = self.desc
         return dml_object
 
 
@@ -524,7 +555,7 @@ class DMLProtocolRegistry:
 
     def load_service(self, protocol_file):
         protocol = DMLProtocol(protocol_file)
-        logger.debug("loaded protocol %d: %s", protocol.id, protocol.description)
+        logger.debug("loaded protocol %d: %s", protocol.id, protocol.desc)
         for msg in protocol.message_map.values():
             logger.debug("\t%s", repr(msg))
         self.protocol_map[protocol.id] = protocol

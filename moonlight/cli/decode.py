@@ -6,6 +6,8 @@ import base64
 import click
 import yaml
 
+from moonlight.net import PacketReader
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +64,9 @@ def pcap(
     """
 
     # lazy load since scapy is kinda heavy
-    from moonlight.net import PcapReader  # pylint: disable=import-outside-toplevel
+    from moonlight.net.scapy import (  # pylint: disable=import-outside-toplevel
+        PcapReader,
+    )
 
     rdr = PcapReader(
         pcap_path=input_f,
@@ -126,8 +130,20 @@ def pcap(
     type=click.Choice(["yaml"]),
     help="Format of the output human representation",
 )
+@click.option(
+    "-c",
+    "--compact",
+    is_flag=True,
+    default=False,
+    help="Reduces the amount of information in output",
+)
 def packet(
-    message_def_dir: Path, input: str, typedefs: Path, in_fmt: str, out_fmt: str
+    message_def_dir: Path,
+    input: str,
+    typedefs: Path,
+    in_fmt: str,
+    out_fmt: str,
+    compact: bool,
 ):
     """
     Decodes packet from stdin
@@ -146,9 +162,6 @@ def packet(
     elif in_fmt == "hex":
         input = bytes.fromhex(input.replace(" ", "").replace("\n", ""))
 
-    # lazy load since scapy is kinda heavy
-    from moonlight.net import PacketReader  # pylint: disable=import-outside-toplevel
-
     rdr = PacketReader(
         typedef_path=typedefs,
         msg_def_folder=message_def_dir,
@@ -160,7 +173,7 @@ def packet(
         yaml.dump({"error": "failed to decode packet"}, sys.stdout)
     else:
         yaml.dump(
-            msg.to_human_dict(),
+            msg.as_human_dict(compact=compact),
             sys.stdout,
             default_flow_style=False,
             sort_keys=False,

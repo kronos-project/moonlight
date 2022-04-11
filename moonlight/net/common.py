@@ -3,26 +3,156 @@
 """
 
 from __future__ import annotations
-from abc import abstractmethod
-from dataclasses import dataclass
 
 import struct
 from enum import Enum
 from io import BytesIO
-from typing import Any, Union
+from types import LambdaType
+from typing import Any, Tuple
 
 PACKET_HEADER_LEN = 8
 DML_HEADER_LEN = 2
 
 
-class HumanReadableMixin:
-    """ """
+class HumanReprMixin:
+    """
+    Mixin providing `as_human_dict`, a utility to translate an object into a
+    human-friendly dict interpretation.
 
-    def human_dict(self) -> dict:
-        vars(self)
+    HumanReprMixin is designed as to not need overriding of `as_human_dict`
+    under most circumstances. Using the following class constants, the behavior
+    and handling of desired object attributes can be changed.
+
+    `HUMAN_REPR_IGNORE`: Tuple[str] of object attributes to never include in
+    the resulting dictionary.
+
+    `HUMAN_REPR_SYNTHETIC`: dict[str, LambdaType] of synthetic attributes to
+    include in the resulting dictionary. Each lambda is called with `self` as
+    an argument and inserts the result as is. Objects implementing
+    `HumanReprMixin` will not automatically be converted and the lambda should
+    call it explicitly.
+
+    `HUMAN_REPR_COMPACT_IGNORE`: Tuple[str] of object attributes to exclude
+    from the resulting dictionary if compact is set to `True`
+
+    `HUMAN_REPR_RENAME`: dict[str, str] where attributes of the name `key`
+    are instead included in the resulting dictionary with the name `value`.
+    This does not apply to synthetic or static values.
+
+    `HUMAN_REPR_REPR_ON_COMPACT`: bool where when `True` and `compact` mode
+    is requested, the object's `__repr__` will be returned instead of the
+    normal dictionary. Defaults to `False`.
+
+    `HUMAN_REPR_ORDER`: Tuple[str] of resulting dictionary keys. If a given key
+    is in the final dictionary, these keys will be first in the order given.
+    Any keys not specified will be after these. Keys renamed via
+    `HUMAN_REPR_RENAME` will need to be given with their new name,
+    not the original.
+
+    Example:
+           @dataclass(init=True)
+           class ADataclass(HumanReprMixin):
+               HUMAN_REPR_IGNORE = ("ignore_me")
+               HUMAN_REPR_COMPACT_IGNORE = ("sometimes_ignore_me")
+               HUMAN_REPR_RENAME = {"an_abv": "annoying_abbreviation"}
+               HUMAN_REPR_ORDER = ("me_first", "me_second")
+               HUMAN_REPR_SYNTHETIC = {"im_not_real": lambda x: x.__name__}
+
+               ignore_me: bool
+               include_me: bool
+               sometimes_ignore_me: bool
+               me_first: bool
+               me_second: bool
+               an_abv: str
+
+           >> obj.as_human_dict(compact=False)
+           {
+               "me_first": True,
+               "me_second": True,
+               "include_me": True,
+               "im_not_real": "ADataclass",
+               "annoying_abbreviation": "WYSIWYG"
+           }
+    """
+
+    HUMAN_REPR_IGNORE: Tuple[str] = ()
+    HUMAN_REPR_SYNTHETIC: dict[str, LambdaType] = {}
+    HUMAN_REPR_STATIC: dict[str, Any] = {}
+    HUMAN_REPR_COMPACT_IGNORE: Tuple[str] = ()
+    HUMAN_REPR_RENAME: dict[str, str] = {}
+    HUMAN_REPR_REPR_ON_COMPACT: bool = False
+    HUMAN_REPR_ORDER: Tuple[str] = ()
+
+    def as_human_dict(self, compact=True) -> dict[str, Any] | str:
+        keypairs: dict[str, Any] = {}
+
+        if self.HUMAN_REPR_REPR_ON_COMPACT:
+            return repr(self)
+
+        for key, val in vars(self).items():
+            if key in self.HUMAN_REPR_IGNORE:
+                continue
+            if compact and key in self.HUMAN_REPR_COMPACT_IGNORE:
+                continue
+
+            # turn any HRM attribute into its dict first
+            if isinstance(val, HumanReprMixin):
+                # replace output name if requested
+                keypairs[self.HUMAN_REPR_RENAME.get(key, key)] = val.as_human_dict(
+                    compact=compact
+                )
+            # convert any HRM objects within list or dict attributes
+            elif isinstance(val, list):
+                tmp = []
+                for subitem in val:
+                    if isinstance(subitem, HumanReprMixin):
+                        tmp.append(subitem.as_human_dict(compact=compact))
+                    else:
+                        tmp.append(subitem)
+                keypairs[self.HUMAN_REPR_RENAME.get(key, key)] = tmp
+            elif isinstance(val, dict):
+                tmp = {}
+                for subkey, subvalue in val.items():
+                    if isinstance(subvalue, HumanReprMixin):
+                        tmp[subkey] = subvalue.as_human_dict(compact=compact)
+                    else:
+                        tmp[subkey] = subvalue
+                keypairs[self.HUMAN_REPR_RENAME.get(key, key)] = tmp
+            else:
+                # anything else is left to the whims of what's outputting the end dict
+                keypairs[self.HUMAN_REPR_RENAME.get(key, key)] = val
+
+        for key, val in self.HUMAN_REPR_SYNTHETIC.items():
+            try:
+                if compact and key in self.HUMAN_REPR_COMPACT_IGNORE:
+                    continue
+                tmp = val(self)
+                keypairs[key] = val(self)
+            # we don't want synthetics in an invalid state to cause a crash
+            # attribute and value errors are possible here
+            except Exception as err:  # pylint: disable=broad-except
+                keypairs[key] = f"Failed: {err}"
+
+        for key, val in self.HUMAN_REPR_STATIC:
+            keypairs[key] = val
+
+        # no need to do reordering if not requested
+        if not self.HUMAN_REPR_ORDER:
+            return keypairs
+
+        keypairs_sorted: dict[str, Any] = {}
+        for ordered_key in self.HUMAN_REPR_ORDER:
+            if ordered_key in keypairs:
+                keypairs_sorted[ordered_key] = keypairs[ordered_key]
+        # include the other keys
+        # the order they're defined controls most printing systems
+        for key, value in keypairs.items():
+            keypairs_sorted[key] = value
+
+        return keypairs_sorted
 
 
-class DMLType(Enum):
+class DMLType(HumanReprMixin, Enum):
     """Bit types used by the KI network protocol.
 
     Args:
@@ -100,6 +230,9 @@ class DMLType(Enum):
             if enum.t_name == t_name:
                 return enum
         return None
+
+    def as_human_dict(self, compact=True):
+        return repr(self)
 
     def __str__(self):
         return self.t_name
@@ -193,15 +326,14 @@ class BytestreamReader:
         bites = self.stream.read(str_len)
         try:
             return bytes.decode("utf-16-le")
-        except:  # pylint: disable=bare-except
+        except Exception:  # pylint: disable=broad-except
             return bites
         finally:
             if peek:
                 self.stream.seek(buffer_pos)
 
     def advance(self, length: int):
-        """
-        advance advances the internal stream by `length` bytes
+        """advance advances the internal stream by `length` bytes
 
         Args:
             length (int): number of bytes to advance
@@ -210,8 +342,7 @@ class BytestreamReader:
         self.stream.read(length)
 
     def read(self, dml_type: DMLType, peek: bool = False):
-        """
-        read reads a `DMLType` from the stream
+        """read reads a `DMLType` from the stream
 
         Args:
             dml_type (DMLType): Expected `DMLType` of the field
@@ -228,8 +359,7 @@ class BytestreamReader:
         return self.__simple_read(dml_type, peek)
 
     def peek(self, enc_type: DMLType):
-        """
-        peek reads a `DMLType` from the stream, not advancing the head.
+        """peek reads a `DMLType` from the stream, not advancing the head.
 
         Args:
             enc_type (DMLType): Expected `DMLType` of the field
@@ -256,30 +386,8 @@ class BytestreamReader:
         return self.__str__()
 
 
-# @dataclass
-# class BaseMessage:
-#     """
-#     Dataclass intended to create an interface for different messages and
-#     so that all bytes can be held onto.
-#     """
-
-#     def __init__(
-#         self, protocol_class: "MessageProtocol", original_bytes: bytes = None
-#     ) -> None:
-#         """
-#         __init__
-
-#         Args:
-#             protocol_class (MessageProtocol): protocol of the message
-#             original_bytes (bytes, optional): original bytes of the message. Defaults to None.
-#         """
-#         self.protocol_class = protocol_class
-#         self.original_bytes = original_bytes
-
-
-class PacketHeader:
-    """
-    Dataclass holding the KI packet header fields.
+class PacketHeader(HumanReprMixin):
+    """Dataclass holding the KI packet header fields.
 
     Note: Passing in a BytestreamReader instead of bytes will change the current
     position of the reader.
@@ -298,7 +406,10 @@ class PacketHeader:
             raise ValueError("Not a KI game protocol packet. F00D missing.")
 
     def to_human_dict(self):
-        return vars(self)
+        return repr(self)
+
+    def as_human_dict(self, compact=True) -> dict[str, Any] | str:
+        return repr(self)
 
     def __repr__(self) -> str:
         return f"<PacketHeader content_len={self.content_len} content_is_control={hex(self.content_is_control)} control_opcode={hex(self.control_opcode)}>"

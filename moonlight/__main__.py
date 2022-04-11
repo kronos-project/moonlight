@@ -5,7 +5,7 @@ from moonlight.cli import pcap, decode
 
 STANDARD_LOG_FMT = "%(levelname)-8s %(message)s"
 STANDARD_LOG_LVL = logging.INFO
-VERBOSE_LOG_FMT = "[%(levelname)s::%(module)s:%(lineno)d] %(message)s"
+VERBOSE_LOG_FMT = "%(asctime)s [%(levelname)s::%(module)s:%(lineno)d] %(message)s"
 VERBOSE_LOG_LVL = logging.DEBUG
 SILENT_LOG_LVL = 60
 

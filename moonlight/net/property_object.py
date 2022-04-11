@@ -49,7 +49,7 @@ class PropertyObjectDecoder:
         self.property_mask = _str_to_int(property_mask)
         self.flags = _str_to_int(flags)
         self.exhaustive = exhaustive
-        self.__typedef_path = typedef_path
+        self._typedef_path = typedef_path
         self.typecache = typecache
         self.serializer = None
         if typecache and typedef_path:
@@ -87,8 +87,8 @@ class PropertyObjectDecoder:
             typedef_path (PathLike): path to wizwalker typedef json file
         """
 
-        self.__typedef_path = typedef_path
-        with open(self.__typedef_path, encoding="utf-8") as file:
+        self._typedef_path = typedef_path
+        with open(self._typedef_path, encoding="utf-8") as file:
             self.typecache = TypeCache(json.load(file))
         self.serializer = BinarySerializer(self.typecache, self.flags, self.exhaustive)
 
@@ -101,7 +101,7 @@ class PropertyObjectDecoder:
             sourcepath (PathLike | None): Optional sourcepath for visibility's sake
         """
         self.typecache = cache
-        self.__typedef_path = sourcepath
+        self._typedef_path = sourcepath
         self.serializer = BinarySerializer(self.typecache, self.flags, self.exhaustive)
 
     def can_deserialize(self) -> bool:

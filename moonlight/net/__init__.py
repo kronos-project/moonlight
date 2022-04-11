@@ -1,4 +1,5 @@
-from .capture import PcapReader, LiveSniffer, filter_pcap, PacketReader
+# from .scapy.capture import PcapReader, LiveSniffer, filter_pcap, PacketReader
+from .decode import PacketReader
 from .control import (
     ControlMessage,
     ControlProtocol,

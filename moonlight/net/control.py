@@ -6,7 +6,13 @@
 from argparse import ArgumentError
 from dataclasses import dataclass
 import struct
-from .common import BytestreamReader, PacketHeader, PACKET_HEADER_LEN, DMLType
+from .common import (
+    BytestreamReader,
+    HumanReprMixin,
+    PacketHeader,
+    PACKET_HEADER_LEN,
+    DMLType,
+)
 
 
 def _unpack_weirdo_timestamp(reader: BytestreamReader):
@@ -20,7 +26,7 @@ def _unpack_weirdo_timestamp(reader: BytestreamReader):
 
 # FIXME: session id is for all control and should be here
 @dataclass(init=True, repr=True)
-class ControlMessage:
+class ControlMessage(HumanReprMixin):
     OPCODE = None
 
     packet_header: PacketHeader
@@ -135,6 +141,11 @@ class SessionAcceptMessage(ControlMessage):
 @dataclass(init=True, repr=True)
 class KeepAliveMessage(ControlMessage):
     OPCODE = 0x3
+    HUMAN_REPR_SYNTHETIC = {
+        "_client_min_into_session": lambda x: x.client_min_into_session(),
+        "_client_millis_into_second": lambda x: x.client_millis_into_second(),
+        "_server_millis_since_start": lambda x: x.server_millis_since_start(),
+    }
 
     variable_timestamp: bytes
 
@@ -198,7 +209,8 @@ class ControlProtocol:
       These messages must be decrypted in order to be processed.
     """
 
-    def decode_packet(
+    # TODO: refactor into function
+    def decode_packet(  # pylint: disable=no-self-use
         self,
         bites: BytestreamReader | bytes,
         header: PacketHeader,

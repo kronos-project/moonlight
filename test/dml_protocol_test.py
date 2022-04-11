@@ -36,9 +36,9 @@ def test_decode_poi(dml_protocol: DMLProtocolRegistry, dml_update_poi: bytes):
     obj = dml_protocol.decode_packet(dml_update_poi)
     assert obj is not None
     assert obj.order_id == 31
-    assert obj.protocol_id == 53
-    assert obj.msg_desc == "Server updating the POI data"
-    assert obj.protocol_desc == "Wizard Messages2"
+    assert obj.protocol().id == 53
+    assert obj.desc() == "Server updating the POI data"
+    assert obj.protocol().desc == "Wizard Messages2"
     assert len(obj.fields) == 1
     assert obj.fields[0].name() == "Data"
     assert obj.fields[0].dml_type() is DMLType.STR
@@ -54,9 +54,9 @@ def test_decode_correct_loc(
     obj = dml_protocol.decode_packet(game_messages_correct_loc)
     assert obj is not None
     assert obj.order_id == 119
-    assert obj.protocol_id == 5
-    assert obj.msg_desc == "The server is changing the movement state on a mobile"
-    assert obj.protocol_desc == "Game Messages"
+    assert obj.protocol().id == 5
+    assert obj.desc() == "The server is changing the movement state on a mobile"
+    assert obj.protocol().desc == "Game Messages"
     assert len(obj.fields) == 2
     assert obj.fields[0].name() == "GlobalID"
     assert obj.fields[0].dml_type() is DMLType.GID
@@ -69,9 +69,9 @@ def test_decode_interact_options(
     obj = dml_protocol.decode_packet(dml_update_poi)
     assert obj is not None
     assert obj.order_id == 31
-    assert obj.protocol_id == 53
-    assert obj.msg_desc == "Server updating the POI data"
-    assert obj.protocol_desc == "Wizard Messages2"
+    assert obj.protocol().id == 53
+    assert obj.desc() == "Server updating the POI data"
+    assert obj.protocol().desc == "Wizard Messages2"
     assert len(obj.fields) == 1
     assert obj.fields[0].name() == "Data"
     assert obj.fields[0].dml_type() is DMLType.STR
