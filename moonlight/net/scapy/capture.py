@@ -4,6 +4,7 @@
 
 import logging
 import os
+from pathlib import Path
 import traceback
 from os import PathLike, listdir
 from os.path import isfile, join
@@ -22,10 +23,16 @@ from scapy.utils import PcapWriter as Scapy_PcapWriter
 logging.getLogger("scapy.runtime").setLevel(logging.WARNING)
 # pylint: enable=wrong-import-position
 
-from moonlight.net import PacketReader
+from moonlight.net import (
+    PacketReader,
+    PacketHeader,
+    SessionAcceptMessage,
+    SessionOfferMessage,
+)
 
 
 logger = logging.getLogger(__name__)
+SENSITIVE_MSG_OPCODES = [SessionAcceptMessage.OPCODE, SessionOfferMessage.OPCODE]
 
 
 def is_ki_packet_naive(packet: Packet):
@@ -34,6 +41,10 @@ def is_ki_packet_naive(packet: Packet):
         and isinstance(packet[TCP].payload, Raw)
         and bytes(packet[TCP].payload).startswith(b"\x0D\xF0")
     )
+
+
+def is_sensitive_packet_naive(packet: Packet):
+    bytes(packet[TCP].payload).startswith(b"\x0D\xF0")
 
 
 class PcapReader(PacketReader):
@@ -122,14 +133,95 @@ class LiveSniffer:
         self.stream.stop()
 
 
-def filter_pcap(p_in: PathLike, p_out: PathLike, compress: bool = False):
-    reader = PcapReader(p_in)
-    writer = Scapy_PcapWriter(p_out, gz=compress)
+def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
+    header = PacketHeader(payload)
+    if (
+        header.content_is_control
+        and header.control_opcode == SessionOfferMessage.OPCODE
+    ):
+        try:
+            # Sizing chart
+            # header:         8 :  0 -  7
+            # session_id:     2 :  7 -  9
+            # sec_timestamp:  8 :  9 - 17
+            # millis_into:    4 : 17 - 21
+            # signed_msg_len: 4 : 21 - 25
+            # signed_msg:     ? : 26 -  ?
+            decoded = pkt_reader.decode_packet(payload)
+            old_payload = payload
+            # Replace signed msg with zeros
+            new_payload = (
+                old_payload[:26]
+                + (b"\x00" * decoded.signed_msg_len)
+                + old_payload[26 + decoded.signed_msg_len :]
+            )
+            logger.debug(
+                "Sanitized session offer packet",
+                extra={"old": old_payload, "new": new_payload},
+            )
+            return new_payload
+        except ValueError as exc:
+            raise ValueError(
+                "Unable to sanitize session offer due to decode error"
+            ) from exc
+    elif (
+        header.content_is_control
+        and header.control_opcode == SessionAcceptMessage.OPCODE
+    ):
+        try:
+            # Sizing chart - len : start inclusive - end exclusive
+            # header:         8 :  0 -  8
+            # reserved_start: 2 :  8 - 10
+            # sec_timestamp:  8 : 10 - 18
+            # millis_into:    4 : 18 - 22
+            # session_id:     2 : 22 - 24
+            # signed_msg_len: 4 : 24 - 28
+            # signed_msg:     ? : 28 -  ?
+            decoded = pkt_reader.decode_packet(payload)
+            old_payload = payload
+            # Replace signed msg with zeros
+            new_payload = (
+                old_payload[:28]
+                + (b"\x00" * decoded.signed_message_len)
+                + old_payload[28 + decoded.signed_message_len :]
+            )
+            logger.debug(
+                "Sanitized session accept packet",
+                extra={"old": old_payload, "new": new_payload},
+            )
+            return new_payload
+        except ValueError as exc:
+            raise ValueError(
+                "Unable to sanitize session accept due to decode error"
+            ) from exc
+    return payload
+
+
+def filter_pcap(
+    p_in: Path, p_out: Path, compress: bool = False, sanitize: bool = False
+):
+    reader = PcapReader(str(p_in.absolute().resolve()), msg_def_folder=None)
+    writer = Scapy_PcapWriter(str(p_out.absolute().resolve()), gz=compress)
     logger.info("Filtering pcap to ki traffic only: in=%s, out=%s", p_in, p_out)
+    if sanitize:
+        logger.info(
+            "Sanitation is on. SessionOffer and Accept control message signatures will be zeroed out"
+        )
     try:
         i = 1
         while True:
             packet = reader.next_ki_raw()
+            if sanitize and PacketHeader(bytes(packet[TCP].payload)).content_is_control:
+                try:
+                    dirty_data = bytes(packet[TCP].payload)
+                    sanitized_data = sanitize_signed_msg(reader, dirty_data)
+                    if sanitized_data != dirty_data:
+                        packet[TCP].payload = sanitize_signed_msg(
+                            reader, packet[TCP].payload
+                        )
+                        packet[TCP].checksum = None
+                except ValueError:
+                    logger.error("Message sanitation failed", exc_info=True)
             writer.write(packet)
             i += 1
             if i % 100 == 0:
@@ -138,6 +230,10 @@ def filter_pcap(p_in: PathLike, p_out: PathLike, compress: bool = False):
         pass
     except KeyboardInterrupt:
         logger.warning("Cutting filtering short and finalizing")
+    except Exception:
+        logger.critical(
+            "Unrecoverable error occurred while filtering pcap file", exc_info=True
+        )
     finally:
         reader.close()
         writer.close()

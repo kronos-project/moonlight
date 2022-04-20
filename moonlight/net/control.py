@@ -2,7 +2,7 @@
     Implementation of the KI control message protocol
 """
 
-
+import logging
 from argparse import ArgumentError
 from dataclasses import dataclass
 import struct
@@ -13,6 +13,8 @@ from .common import (
     PACKET_HEADER_LEN,
     DMLType,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _unpack_weirdo_timestamp(reader: BytestreamReader):
@@ -80,15 +82,6 @@ class SessionOfferMessage(ControlMessage):
             signed_msg=signed_msg,
         )
 
-    def to_human_dict(self):
-        return {
-            "sec_timestamp": self.unix_timestamp_seconds,
-            "millis_into_sec_timestamp": self.unix_timestamp_millis_into_second,
-            "signed_msg_len": self.signed_msg_len,
-            "signed_msg": self.signed_msg,
-            **super().to_human_dict(),
-        }
-
 
 @dataclass(init=True, repr=True)
 class SessionAcceptMessage(ControlMessage):
@@ -132,11 +125,6 @@ class SessionAcceptMessage(ControlMessage):
             signed_msg=signed_message,
         )
 
-    def to_human_dict(self):
-        data = vars(self)
-        data.update(super().to_human_dict())
-        return data
-
 
 @dataclass(init=True, repr=True)
 class KeepAliveMessage(ControlMessage):
@@ -159,15 +147,6 @@ class KeepAliveMessage(ControlMessage):
     def client_min_into_session(self):
         # bytes 3-4 hold if from client
         return BytestreamReader(self.variable_timestamp[2:]).read(DMLType.UINT16)
-
-    def to_human_dict(self):
-        return {
-            "variable_timestamp": self.variable_timestamp,
-            "_client_min_into_session": self.client_min_into_session(),
-            "_client_millis_into_second": self.client_millis_into_second(),
-            "_server_millis_since_start": self.server_millis_since_start(),
-            **super().to_human_dict(),
-        }
 
     @classmethod
     def from_bytes(

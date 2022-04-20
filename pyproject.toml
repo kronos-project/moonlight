@@ -20,6 +20,7 @@ black = "^21.12b0"
 pylint = "^2.12.2"
 printrospector = {git = "https://gitlab.com/vale_/printrospector", rev = "main"}
 click = "^8.0.4"
+colorama = "^0.4.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"

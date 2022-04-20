@@ -26,6 +26,12 @@ def pcap():
     type=click.Path(file_okay=True, resolve_path=True, path_type=pathlib.Path),
 )
 @click.option(
+    "-s",
+    "--sanitize",
+    is_flag=True,
+    help="Nullify session offer and accept signed messages",
+)
+@click.option(
     "-z/-Z",
     "--zip/--no-zip",
     default=False,
@@ -33,16 +39,19 @@ def pcap():
     help="Output file compression via gzip",
 )
 def filter_cmd(
-    input_f: PathLike, output_f: PathLike, zip: bool
+    input_f: PathLike, output_f: PathLike, sanitize: bool, zip: bool
 ):  # pylint: disable=redefined-builtin
     """
     Filter content of pcap files
 
     Filter takes compatible packet capture files (wireshark) and removes all
-      packets that aren't part of the KI network protocol, greatly reducing the
-      size of packet captures. Optionally compresses output files as well.
+    packets that aren't part of the KI network protocol, greatly reducing the
+    size of packet captures. Optionally compresses output files and
+    sanitizes session offer and accept messages.
+
     A packet is naively considered to be of the KI protocol if it starts with
-      the \\x0D\\xF0 magic (little endian F00D). This may be improved in the future.
+    the \\x0D\\xF0 magic (little endian F00D) and was sent via tcp.
+    This may be improved in the future.
 
     INPUT_F: A valid packet capture file containing KI network traffic
 
@@ -54,7 +63,7 @@ def filter_cmd(
         filter_pcap,
     )
 
-    filter_pcap(input_f, output_f, compress=zip)
+    filter_pcap(input_f, output_f, compress=zip, sanitize=sanitize)
 
 
 pcap.add_command(filter_cmd, name="filter")

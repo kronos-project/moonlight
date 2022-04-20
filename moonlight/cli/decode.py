@@ -2,6 +2,7 @@ from pathlib import Path
 import logging
 import sys
 import base64
+import ast
 
 import click
 import yaml
@@ -137,7 +138,7 @@ def pcap(
     default=False,
     help="Reduces the amount of information in output",
 )
-def packet(
+def packet(  # pylint: disable=too-many-arguments
     message_def_dir: Path,
     input: str,
     typedefs: Path,
@@ -158,7 +159,7 @@ def packet(
         input = sys.stdin.buffer.read()
 
     if in_fmt == "base64":
-        input = base64.decodebytes(input.replace(" ", "").replace("\n", ""))
+        input = base64.b64decode(input)
     elif in_fmt == "hex":
         input = bytes.fromhex(input.replace(" ", "").replace("\n", ""))
 

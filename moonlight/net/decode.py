@@ -20,9 +20,12 @@ class PacketReader:
         self.silence_decode_errors = silence_decode_errors
 
         # Load dml decoder
-        dml_services = [
-            f for f in listdir(msg_def_folder) if isfile(join(msg_def_folder, f))
-        ]
+        if msg_def_folder is not None:
+            dml_services = [
+                f for f in listdir(msg_def_folder) if isfile(join(msg_def_folder, f))
+            ]
+        else:
+            dml_services = []
         dml_services = map(lambda x: join(msg_def_folder, x), dml_services)
         self.dml_protocol = DMLProtocolRegistry(
             *dml_services, typedef_path=typedef_path
@@ -65,7 +68,7 @@ class PacketReader:
 
             if header.content_is_control != 0:
                 return self.control_protocol.decode_packet(
-                    reader, header, original_data=bites
+                    reader, header, original_data=bites, has_ki_header=False
                 )
 
             return self.dml_protocol.decode_packet(bites)

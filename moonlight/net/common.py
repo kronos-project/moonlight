@@ -3,6 +3,7 @@
 """
 
 from __future__ import annotations
+from operator import length_hint
 
 import struct
 from enum import Enum
@@ -264,10 +265,15 @@ class BytestreamReader:
             peek (bool, optional): True if reading leaves the bytes in
               the buffer. Defaults to False.
         """
-
         if peek:
-            return self.__peek_stream(length)
-        return self.stream.read(length)
+            bites = self.__peek_stream(length)
+        bites = self.stream.read(length)
+
+        if length >= 0 and len(bites) != length:
+            raise ValueError(
+                f"Requested length mismatch: expected: {length} actual: {len(bites)}. Buffer overread?"
+            )
+        return bites
 
     def __simple_read(self, dml_type: DMLType, peek=False) -> Any:
         """
@@ -288,11 +294,7 @@ class BytestreamReader:
         """
         if dml_type in [DMLType.STR, DMLType.WSTR, DMLType.PO_STR, DMLType.PO_WSTR]:
             raise ValueError("Known special case. Cannot be read simply.")
-        raw_bytes = None
-        if peek:
-            raw_bytes = self.__peek_stream(dml_type.length)[: dml_type.length]
-        else:
-            raw_bytes = self.stream.read(dml_type.length)
+        raw_bytes = self.read_raw(dml_type.length, peek=peek)[: dml_type.length]
 
         unpacked_repr = struct.unpack(dml_type.struct_code, raw_bytes)
         return unpacked_repr[0]
