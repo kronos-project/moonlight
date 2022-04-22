@@ -97,8 +97,10 @@ class LiveSniffer:
         dml_def_folder: PathLike = os.path.join(
             os.path.dirname(__file__), "..", "res", "dml", "messages"
         ),
+        target_ip: str = "127.0.0.1",
     ):
         self.stream = None
+        self.target_ip = target_ip
         protocols = [
             f for f in listdir(dml_def_folder) if isfile(join(dml_def_folder, f))
         ]
@@ -120,7 +122,7 @@ class LiveSniffer:
 
     def open_livestream(self):
         self.stream = AsyncSniffer(
-            filter="dst host 79.110.83.12 or src host 79.110.83.12",
+            filter=f"dst host {self.target_ip} or src host {self.target_ip}",
             session=TCPSession,
             prn=self.scapy_callback,
         )

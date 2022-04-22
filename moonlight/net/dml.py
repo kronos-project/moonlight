@@ -244,7 +244,7 @@ class Field(HumanReprMixin):
 # FIXME: grab protocol stuff from definition
 @dataclass(init=True, repr=True)
 class DMLMessage(HumanReprMixin):
-    HUMAN_REPR_IGNORE = "dml_protocol"
+    HUMAN_REPR_IGNORE = "definition"
     HUMAN_REPR_SYNTHETIC = {
         "protocol_id": lambda x: x.protocol().id,
         "protocol_description": lambda x: x.protocol().description,
@@ -252,10 +252,10 @@ class DMLMessage(HumanReprMixin):
         "description": lambda x: x.description(),
     }
     HUMAN_REPR_COMPACT_IGNORE = (
-        "protocol" "protocol_id",
+        "protocol",
+        "protocol_id",
         "protocol_desc",
         "order_id",
-        "header",
         "header",
     )
     HUMAN_REPR_ORDER = (
@@ -525,10 +525,10 @@ class DMLProtocol:
             )
         except ValueError as err:
             logger.error(
-                'Failed to decode message. err: "%s", protocol_id: %d, msg_id: %d, packet_data (optional): [%s]',
+                'Failed to decode message. err: "%s", protocol_id: %d, msg_id: %d, packet_data: %s',
                 err,
                 self.id,
-                self.message_map[message_id],
+                message_id,
                 original_bites,
             )
             return None

@@ -83,7 +83,7 @@ def pcap(
                 yaml.dump({"error": "failed to decode packet"}, writer)
             else:
                 yaml.dump(
-                    msg.to_human_dict(),
+                    msg.as_human_dict(compact=False),
                     writer,
                     default_flow_style=False,
                     sort_keys=False,
