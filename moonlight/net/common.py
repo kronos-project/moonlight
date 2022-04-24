@@ -3,10 +3,13 @@
 """
 
 from __future__ import annotations
-from operator import length_hint
+from dataclasses import dataclass
+from datetime import datetime
+from email.header import Header
+from enum import Enum
+from collections import OrderedDict
 
 import struct
-from enum import Enum
 from io import BytesIO
 from types import LambdaType
 from typing import Any, Tuple
@@ -44,11 +47,17 @@ class HumanReprMixin:
     is requested, the object's `__repr__` will be returned instead of the
     normal dictionary. Defaults to `False`.
 
-    `HUMAN_REPR_ORDER`: Tuple[str] of resulting dictionary keys. If a given key
+    `HUMAN_REPR_ORDER_PREPEND`: Tuple[str] of resulting dictionary keys. If a given key
     is in the final dictionary, these keys will be first in the order given.
     Any keys not specified will be after these. Keys renamed via
     `HUMAN_REPR_RENAME` will need to be given with their new name,
     not the original.
+
+    `HUMAN_REPR_ORDER_APPEND`: Tuple[str] of resulting dictionary keys. If a
+    given key is in the final dictionary, these keys will always be last in the
+    order given. Any keys not specified will be before these. Keys renamed via
+    `HUMAN_REPR_RENAME` will need to be given with their new name, not the
+    original.
 
     Example:
            @dataclass(init=True)
@@ -56,7 +65,8 @@ class HumanReprMixin:
                HUMAN_REPR_IGNORE = ("ignore_me")
                HUMAN_REPR_COMPACT_IGNORE = ("sometimes_ignore_me")
                HUMAN_REPR_RENAME = {"an_abv": "annoying_abbreviation"}
-               HUMAN_REPR_ORDER = ("me_first", "me_second")
+               HUMAN_REPR_ORDER_PREPEND = ("me_first", "me_second")
+               HUMAN_REPR_ORDER_APPEND = ("me_last")
                HUMAN_REPR_SYNTHETIC = {"im_not_real": lambda x: x.__name__}
 
                ignore_me: bool
@@ -64,6 +74,7 @@ class HumanReprMixin:
                sometimes_ignore_me: bool
                me_first: bool
                me_second: bool
+               me_last: bool
                an_abv: str
 
            >> obj.as_human_dict(compact=False)
@@ -72,7 +83,8 @@ class HumanReprMixin:
                "me_second": True,
                "include_me": True,
                "im_not_real": "ADataclass",
-               "annoying_abbreviation": "WYSIWYG"
+               "annoying_abbreviation": "WYSIWYG",
+               "me_last"
            }
     """
 
@@ -82,7 +94,8 @@ class HumanReprMixin:
     HUMAN_REPR_COMPACT_IGNORE: Tuple[str] = ()
     HUMAN_REPR_RENAME: dict[str, str] = {}
     HUMAN_REPR_REPR_ON_COMPACT: bool = False
-    HUMAN_REPR_ORDER: Tuple[str] = ()
+    HUMAN_REPR_ORDER_PREPEND: Tuple[str] = ()
+    HUMAN_REPR_ORDER_APPEND: Tuple[str] = ()
 
     def as_human_dict(self, compact=True) -> dict[str, Any] | str:
         keypairs: dict[str, Any] = {}
@@ -138,19 +151,56 @@ class HumanReprMixin:
             keypairs[key] = val
 
         # no need to do reordering if not requested
-        if not self.HUMAN_REPR_ORDER:
+        if not self.HUMAN_REPR_ORDER_PREPEND and not self.HUMAN_REPR_ORDER_APPEND:
             return keypairs
 
         keypairs_sorted: dict[str, Any] = {}
-        for ordered_key in self.HUMAN_REPR_ORDER:
+        for ordered_key in self.HUMAN_REPR_ORDER_PREPEND:
             if ordered_key in keypairs:
                 keypairs_sorted[ordered_key] = keypairs[ordered_key]
-        # include the other keys
+
+        # include unordered keys
         # the order they're defined controls most printing systems
         for key, value in keypairs.items():
-            keypairs_sorted[key] = value
+            if key not in self.HUMAN_REPR_ORDER_APPEND:
+                keypairs_sorted[key] = value
+
+        # and finally ordered to append
+        for key, value in keypairs.items():
+            if key in self.HUMAN_REPR_ORDER_APPEND:
+                keypairs_sorted[key] = value
 
         return keypairs_sorted
+
+
+class MessageSender(HumanReprMixin, Enum):
+    CLIENT = 1
+    SERVER = 2
+
+    def __init__(self, sender) -> None:
+        self.netpack_port = sender
+
+    # override since we cant use the class constants to customize
+    def as_human_dict(self, compact=True) -> dict[str, Any] | str:
+        return self.name
+
+    @classmethod
+    def from_capture_port(cls, port: int) -> MessageSender | None:
+        for const in cls:
+            if const.netpack_port == port:
+                return const
+        return None
+
+
+@dataclass(init=True, repr=True, kw_only=True)
+class Message(HumanReprMixin):
+    original_bytes: bytes
+    packet_header: Header = None
+    sender: MessageSender | None = None
+    timestamp: datetime | None = None
+
+    HUMAN_REPR_ORDER_PREPEND = ("timestamp", "sender")
+    HUMAN_REPR_ORDER_APPEND = ("packet_header", "original_bytes")
 
 
 class DMLType(HumanReprMixin, Enum):

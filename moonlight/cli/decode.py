@@ -2,10 +2,11 @@ from pathlib import Path
 import logging
 import sys
 import base64
-import ast
+from typing import OrderedDict
 
 import click
 import yaml
+import yamlloader
 
 from moonlight.net import PacketReader
 
@@ -20,6 +21,14 @@ def decode():
     Decoding individual messages and wireshark PCAP files into a human-readable
     format.
     """
+
+
+def dump_anydict_as_map(anydict):
+    yaml.add_representer(anydict, _represent_dictorder)
+
+
+def _represent_dictorder(self, data):
+    return self.represent_mapping("tag:yaml.org,2002:map", data.items())
 
 
 @click.command()
@@ -69,28 +78,57 @@ def pcap(
         PcapReader,
     )
 
+    dump_anydict_as_map(OrderedDict)
+
     rdr = PcapReader(
         pcap_path=input_f,
         typedef_path=typedefs,
         msg_def_folder=message_def_dir,
-        silence_decode_errors=True,
+        silence_decode_errors=False,
     )
     with open(output_f, "w+t", encoding="utf8") as writer:
         # TODO: write metadata
-        for i, msg in enumerate(rdr, start=1):
+        i = 1
+        while True:
             writer.write(f"---\n# {i}\n")
-            if msg is None:
-                yaml.dump({"error": "failed to decode packet"}, writer)
-            else:
+            try:
+                msg = next(rdr)
+            except ValueError as err:
                 yaml.dump(
-                    msg.as_human_dict(compact=False),
-                    writer,
-                    default_flow_style=False,
-                    sort_keys=False,
+                    {"error": err}, writer, default_flow_style=False, sort_keys=False
                 )
+                writer.write("\n")
+                continue
+            except StopIteration:
+                break
+            finally:
+                i += 1
+
+            yaml.dump(
+                msg.as_human_dict(compact=False),
+                writer,
+                default_flow_style=False,
+                sort_keys=False,
+            )
+
             writer.write("\n")
             if i % 100 == 0:
                 logger.info("Progress: completed %d so far", i)
+
+        # for i, msg in enumerate(rdr, start=1):
+        #     writer.write(f"---\n# {i}\n")
+        #     if msg is None:
+        #         yaml.dump({"error": "failed to decode packet"}, writer)
+        #     else:
+        #         yaml.dump(
+        #             msg.as_human_dict(compact=False),
+        #             writer,
+        #             default_flow_style=False,
+        #             sort_keys=False,
+        #         )
+        #     writer.write("\n")
+        #     if i % 100 == 0:
+        #         logger.info("Progress: completed %d so far", i)
 
     rdr.close()
 
@@ -178,6 +216,7 @@ def packet(  # pylint: disable=too-many-arguments
             sys.stdout,
             default_flow_style=False,
             sort_keys=False,
+            Dumper=yamlloader.ordereddict.CDumper,
         )
 
 

@@ -2,12 +2,15 @@
     Provides capture utilities for working with KI game network data
 """
 
+from datetime import datetime
 import logging
 import os
 from pathlib import Path
 import traceback
 from os import PathLike, listdir
 from os.path import isfile, join
+
+from moonlight.net.common import MessageSender, Message
 
 # scapy on import prints warnings about system interfaces
 # pylint: disable=wrong-import-position
@@ -78,8 +81,12 @@ class PcapReader(PacketReader):
                 continue
             return packet
 
-    def __next__(self):
-        return self.decode_packet(bytes(self.next_ki_raw()[TCP].payload))
+    def __next__(self) -> Message:
+        pkt = self.next_ki_raw()
+        msg = self.decode_packet(bytes(pkt[TCP].payload))
+        msg.sender = MessageSender.from_capture_port(pkt[TCP].dport)
+        msg.timestamp = datetime.fromtimestamp(float(pkt.time))
+        return msg
 
     def close(self):
         self.pcap_reader.close()

@@ -4,7 +4,7 @@ import logging
 
 from .control import ControlProtocol, ControlMessage
 from .dml import DMLMessage, DMLProtocolRegistry
-from .common import PacketHeader, BytestreamReader
+from .common import Message, PacketHeader, BytestreamReader
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class PacketReader:
             "Invalid packet data or message definitions", original_bytes
         ) from exc
 
-    def decode_packet(self, bites: bytes) -> list[ControlMessage | DMLMessage]:
+    def decode_packet(self, bites: bytes) -> Message:
         if isinstance(bites, bytes):
             reader = BytestreamReader(bites)
         else:

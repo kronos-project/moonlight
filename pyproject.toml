@@ -22,6 +22,7 @@ printrospector = {git = "https://gitlab.com/vale_/printrospector", rev = "main"}
 click = "^8.0.4"
 colorama = "^0.4.4"
 PyYAML = "^6.0"
+yamlloader = "^1.1.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"

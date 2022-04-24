@@ -761,10 +761,24 @@ category = "main"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 
+[[package]]
+name = "yamlloader"
+version = "1.1.0"
+description = "Ordered YAML loader and dumper for PyYAML."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+pyyaml = "*"
+
+[package.extras]
+dev = ["pytest", "hypothesis"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "9c8295455043feda1fd7cd2287d0cfdb62ee7724b1537d67dcdf1efde645e03a"
+content-hash = "1cf82098cf1c652601013851d6a5c73c014e81784cee1197175525fe6dca56c4"
 
 [metadata.files]
 appnope = [
@@ -1330,4 +1344,8 @@ wrapt = [
     {file = "wrapt-1.13.3-cp39-cp39-win32.whl", hash = "sha256:0a017a667d1f7411816e4bf214646d0ad5b1da2c1ea13dec6c162736ff25a374"},
     {file = "wrapt-1.13.3-cp39-cp39-win_amd64.whl", hash = "sha256:81bd7c90d28a4b2e1df135bfbd7c23aee3050078ca6441bead44c42483f9ebfb"},
     {file = "wrapt-1.13.3.tar.gz", hash = "sha256:1fea9cd438686e6682271d36f3481a9f3636195578bab9ca3382e2f5f01fc185"},
+]
+yamlloader = [
+    {file = "yamlloader-1.1.0-py3-none-any.whl", hash = "sha256:1dde3127e570ad60583711b8963ca3e06fe042e5272d17bea80f12a5366198dd"},
+    {file = "yamlloader-1.1.0.tar.gz", hash = "sha256:8a297c7a197683ba02e5e2b882ffd6c6180d01bdefb534b69cd3962df020bfe6"},
 ]

@@ -19,6 +19,7 @@ from .common import (
     BytestreamReader,
     DMLType,
     HumanReprMixin,
+    Message,
     PacketHeader,
 )
 
@@ -175,7 +176,7 @@ class Field(HumanReprMixin):
 
     HUMAN_REPR_IGNORE = ("value", "definition")
     HUMAN_REPR_COMPACT_IGNORE = "noxfer"
-    HUMAN_REPR_ORDER = ("name", "value", "dml_type")
+    HUMAN_REPR_ORDER_PREPEND = ("name", "value", "dml_type")
     HUMAN_REPR_SYNTHETIC = {
         "value": lambda x: x.as_property_object()
         if x.is_property_object()
@@ -242,14 +243,14 @@ class Field(HumanReprMixin):
 
 
 # FIXME: grab protocol stuff from definition
-@dataclass(init=True, repr=True)
-class DMLMessage(HumanReprMixin):
+@dataclass(init=True, repr=True, kw_only=True)
+class DMLMessage(Message):
     HUMAN_REPR_IGNORE = "definition"
     HUMAN_REPR_SYNTHETIC = {
         "protocol_id": lambda x: x.protocol().id,
-        "protocol_description": lambda x: x.protocol().description,
+        "protocol_desc": lambda x: x.protocol().desc,
         "name": lambda x: x.name(),
-        "description": lambda x: x.description(),
+        "desc": lambda x: x.desc(),
     }
     HUMAN_REPR_COMPACT_IGNORE = (
         "protocol",
@@ -258,7 +259,8 @@ class DMLMessage(HumanReprMixin):
         "order_id",
         "header",
     )
-    HUMAN_REPR_ORDER = (
+    HUMAN_REPR_ORDER_PREPEND = (
+        *Message.HUMAN_REPR_ORDER_PREPEND,
         "name",
         "desc",
         "protocol_id",
@@ -271,8 +273,6 @@ class DMLMessage(HumanReprMixin):
     definition: DMLMessageDef
     original_bytes: bytes = None
     order_id: int = None
-    source: str = None
-    header: PacketHeader = None
 
     def name(self):
         return self.definition.name
@@ -405,7 +405,7 @@ class DMLMessageDef(HumanReprMixin):
         ]
 
         return DMLMessage(
-            decoded_fields,
+            fields=decoded_fields,
             definition=self,
             original_bytes=packet_bytes,
             order_id=self.order_id,
@@ -471,11 +471,20 @@ class DMLProtocol:
         self.version = int(metadata_block.find("ProtocolVersion").text)
         self.desc = metadata_block.find("ProtocolDescription").text
 
-        message_defs.extend(
-            DMLMessageDef(protocol=self, xml_def=block)
-            for block in list(root)
-            if block.tag != "_ProtocolInfo"
-        )
+        known_names = set()
+        for block in list(root):
+            if block.tag == "_ProtocolInfo":
+                continue
+            # KI has a habit of just pasting messages in more than once...
+            if block.tag in known_names:
+                logger.warning(
+                    "Duplicate message definition '%s' found within protocol %d",
+                    block.tag,
+                    self.id,
+                )
+                continue
+            message_defs.append(DMLMessageDef(protocol=self, xml_def=block))
+            known_names.add(block.tag)
 
         # sort the message blocks and assign their record id
         self.message_map = DMLMessageDef.list_to_id_map(message_defs)

@@ -8,8 +8,8 @@ from dataclasses import dataclass
 import struct
 from .common import (
     BytestreamReader,
-    HumanReprMixin,
     PacketHeader,
+    Message,
     PACKET_HEADER_LEN,
     DMLType,
 )
@@ -19,32 +19,24 @@ logger = logging.getLogger(__name__)
 
 def _unpack_weirdo_timestamp(reader: BytestreamReader):
     # We have to store the bits in weird order due to KI's transmit pattern
-    bitstring = b""
-    high_bits = reader.read_raw(4)
-    low_bits = reader.read_raw(4)
-    bitstring = low_bits + high_bits
-    return struct.unpack("<Q", bitstring)[0]
+    high_bits = reader.read(DMLType.UINT32)
+    # FIXME: Hack for weird netpack framing
+    while high_bits != 0:
+        high_bits = reader.read(DMLType.UINT32)
+    return struct.unpack("<I", reader.read_raw(4))[0]
 
 
-# FIXME: session id is for all control and should be here
-@dataclass(init=True, repr=True)
-class ControlMessage(HumanReprMixin):
+@dataclass(init=True, repr=True, kw_only=True)
+class ControlMessage(Message):
     OPCODE = None
 
-    packet_header: PacketHeader
-    original_bytes: bytes
+    HUMAN_REPR_SYNTHETIC = {"ctrl_type": lambda x: type(x).__name__}
+    HUMAN_REPR_ORDER_PREPEND = (*Message.HUMAN_REPR_ORDER_PREPEND, "ctrl_type")
+
     session_id: int
 
-    def to_human_dict(self):
-        return {
-            "_msg_name": type(self).__name__,
-            "session_id": self.session_id,
-            "packet_header": self.packet_header.to_human_dict(),
-            "original_bytes": self.original_bytes,
-        }
 
-
-@dataclass(init=True, repr=True)
+@dataclass(init=True, repr=True, kw_only=True)
 class SessionOfferMessage(ControlMessage):
     OPCODE = 0x0
 
@@ -83,14 +75,13 @@ class SessionOfferMessage(ControlMessage):
         )
 
 
-@dataclass(init=True, repr=True)
+@dataclass(init=True, repr=True, kw_only=True)
 class SessionAcceptMessage(ControlMessage):
     OPCODE = 0x5
 
     reserved_start: int
     unix_timestamp_seconds: int
     unix_timestamp_millis_into_second: int
-    session_id: int
     signed_msg_len: int
     signed_msg: bytes
 
@@ -126,10 +117,11 @@ class SessionAcceptMessage(ControlMessage):
         )
 
 
-@dataclass(init=True, repr=True)
+@dataclass(init=True, repr=True, kw_only=True)
 class KeepAliveMessage(ControlMessage):
     OPCODE = 0x3
     HUMAN_REPR_SYNTHETIC = {
+        **ControlMessage.HUMAN_REPR_SYNTHETIC,
         "_client_min_into_session": lambda x: x.client_min_into_session(),
         "_client_millis_into_second": lambda x: x.client_millis_into_second(),
         "_server_millis_since_start": lambda x: x.server_millis_since_start(),
@@ -172,7 +164,7 @@ class KeepAliveMessage(ControlMessage):
         )
 
 
-@dataclass(init=True, repr=True)
+@dataclass(init=True, repr=True, kw_only=True)
 class KeepAliveResponseMessage(KeepAliveMessage):
     """
     KeepAliveResponseMessage This is the response to the keep alive message.
