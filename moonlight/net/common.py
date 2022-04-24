@@ -362,13 +362,15 @@ class BytestreamReader:
     def __str_read(self, peek=False):
         buffer_pos = self.buffer_position()
         str_len = self.__simple_read(DMLType.USHRT, peek=peek)
-        if str_len > 0:
-            bites = self.stream.read(str_len)
-        else:
-            bites = b""
+        bites = self.stream.read(str_len)
+        try:
+            bites = bites.decode("ascii")
+        except Exception:  # pylint: disable=broad-except
+            pass
 
         if peek:
             self.stream.seek(buffer_pos)
+
         return bites
 
     # TODO: this is a weird scenario. Is it always text? Binary?

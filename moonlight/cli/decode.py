@@ -95,7 +95,11 @@ def pcap(
                 msg = next(rdr)
             except ValueError as err:
                 yaml.dump(
-                    {"error": err}, writer, default_flow_style=False, sort_keys=False
+                    {"error": err},
+                    writer,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    Dumper=yamlloader.ordereddict.CDumper,
                 )
                 writer.write("\n")
                 continue
@@ -109,6 +113,7 @@ def pcap(
                 writer,
                 default_flow_style=False,
                 sort_keys=False,
+                Dumper=yamlloader.ordereddict.CDumper,
             )
 
             writer.write("\n")

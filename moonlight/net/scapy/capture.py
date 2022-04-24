@@ -84,8 +84,9 @@ class PcapReader(PacketReader):
     def __next__(self) -> Message:
         pkt = self.next_ki_raw()
         msg = self.decode_packet(bytes(pkt[TCP].payload))
-        msg.sender = MessageSender.from_capture_port(pkt[TCP].dport)
-        msg.timestamp = datetime.fromtimestamp(float(pkt.time))
+        if msg is not None:
+            msg.sender = MessageSender.from_capture_port(pkt[TCP].dport)
+            msg.timestamp = datetime.fromtimestamp(float(pkt.time))
         return msg
 
     def close(self):

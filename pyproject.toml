@@ -23,6 +23,8 @@ click = "^8.0.4"
 colorama = "^0.4.4"
 PyYAML = "^6.0"
 yamlloader = "^1.1.0"
+fastapi = {extras = ["uvicorn"], version = "^0.75.2"}
+ariadne = "^0.15.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
