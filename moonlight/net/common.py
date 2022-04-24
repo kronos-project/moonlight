@@ -176,6 +176,7 @@ class HumanReprMixin:
 class MessageSender(HumanReprMixin, Enum):
     CLIENT = 1
     SERVER = 2
+    FLAGTOOL = 3
 
     def __init__(self, sender) -> None:
         self.netpack_port = sender
