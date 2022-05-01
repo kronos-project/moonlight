@@ -6,13 +6,16 @@ import logging
 from argparse import ArgumentError
 from dataclasses import dataclass
 import struct
+from typing import Any
 from .common import (
     BytestreamReader,
     PacketHeader,
     Message,
     PACKET_HEADER_LEN,
     DMLType,
+    MessageSender,
 )
+from moonlight.util import bytes_to_pretty_str
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +33,6 @@ def _unpack_weirdo_timestamp(reader: BytestreamReader):
 class ControlMessage(Message):
     OPCODE = None
 
-    HUMAN_REPR_SYNTHETIC = {"ctrl_type": lambda x: type(x).__name__}
     HUMAN_REPR_ORDER_PREPEND = (*Message.HUMAN_REPR_ORDER_PREPEND, "ctrl_type")
 
     session_id: int
@@ -44,6 +46,29 @@ class SessionOfferMessage(ControlMessage):
     unix_timestamp_millis_into_second: int
     signed_msg_len: int
     signed_msg: bytes
+
+    def as_serde_dict(self) -> dict[str, Any] | Any:
+        return {
+            **super().as_serde_dict(),
+            "data": {
+                "format": "CONTROL",
+                "name": type(self).__name__,
+                "fields": {
+                    "unix_timestamp_seconds": {
+                        "value": self.unix_timestamp_seconds,
+                        "format": "int",
+                    },
+                    "unix_timestamp_millis_into_second": {
+                        "value": self.unix_timestamp_millis_into_second,
+                        "format": "int",
+                    },
+                    "signed_msg": {
+                        "value": bytes_to_pretty_str(self.signed_msg),
+                        "format": "pretty bytes",
+                    },
+                },
+            },
+        }
 
     @classmethod
     def from_bytes(
@@ -85,6 +110,33 @@ class SessionAcceptMessage(ControlMessage):
     signed_msg_len: int
     signed_msg: bytes
 
+    def as_serde_dict(self) -> dict[str, Any] | Any:
+        return {
+            **super().as_serde_dict(),
+            "data": {
+                "format": "CONTROL",
+                "name": type(self).__name__,
+                "fields": {
+                    "reserved_start": {
+                        "value": self.reserved_start,
+                        "format": "int",
+                    },
+                    "unix_timestamp_seconds": {
+                        "value": self.unix_timestamp_seconds,
+                        "format": "int",
+                    },
+                    "unix_timestamp_millis_into_second": {
+                        "value": self.unix_timestamp_millis_into_second,
+                        "format": "int",
+                    },
+                    "signed_msg": {
+                        "value": bytes_to_pretty_str(self.signed_msg),
+                        "format": "pretty bytes",
+                    },
+                },
+            },
+        }
+
     @classmethod
     def from_bytes(
         cls,
@@ -122,9 +174,15 @@ class KeepAliveMessage(ControlMessage):
     OPCODE = 0x3
     HUMAN_REPR_SYNTHETIC = {
         **ControlMessage.HUMAN_REPR_SYNTHETIC,
-        "_client_min_into_session": lambda x: x.client_min_into_session(),
-        "_client_millis_into_second": lambda x: x.client_millis_into_second(),
-        "_server_millis_since_start": lambda x: x.server_millis_since_start(),
+        "_client_min_into_session": lambda x: x.client_min_into_session()
+        if x.sender is MessageSender.CLIENT
+        else None,
+        "_client_millis_into_second": lambda x: x.client_millis_into_second()
+        if x.sender is MessageSender.CLIENT
+        else None,
+        "_server_millis_since_start": lambda x: x.server_millis_since_start()
+        if x.sender is MessageSender.SERVER
+        else None,
     }
 
     variable_timestamp: bytes
@@ -139,6 +197,34 @@ class KeepAliveMessage(ControlMessage):
     def client_min_into_session(self):
         # bytes 3-4 hold if from client
         return BytestreamReader(self.variable_timestamp[2:]).read(DMLType.UINT16)
+
+    def as_serde_dict(self) -> dict[str, Any] | Any:
+        if self.sender is MessageSender.CLIENT:
+            datafields = {
+                "min_into_session": {
+                    "value": self.client_min_into_session(),
+                    "format": "int",
+                },
+                "millis_into_second": {
+                    "value": self.client_millis_into_second(),
+                    "format": "int",
+                },
+            }
+        else:
+            datafields = {
+                "millis_since_start": {
+                    "value": self.server_millis_since_start(),
+                    "format": "int",
+                }
+            }
+        return {
+            **super().as_serde_dict(),
+            "data": {
+                "format": "CONTROL",
+                "name": type(self).__name__,
+                "fields": datafields,
+            },
+        }
 
     @classmethod
     def from_bytes(

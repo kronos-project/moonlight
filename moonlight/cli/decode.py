@@ -3,12 +3,14 @@ import logging
 import sys
 import base64
 from typing import OrderedDict
+import json
 
 import click
 import yaml
 import yamlloader
 
 from moonlight.net import PacketReader
+from moonlight.util import SerdeJSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -86,55 +88,26 @@ def pcap(
         msg_def_folder=message_def_dir,
         silence_decode_errors=False,
     )
-    with open(output_f, "w+t", encoding="utf8") as writer:
+    with open(output_f, "w", encoding="utf8") as writer:
         # TODO: write metadata
         i = 1
+        messages = []
+        i = 1
         while True:
-            writer.write(f"---\n# {i}\n")
             try:
-                msg = next(rdr)
+                messages.append(next(rdr))
             except ValueError as err:
-                yaml.dump(
-                    {"error": err},
-                    writer,
-                    default_flow_style=False,
-                    sort_keys=False,
-                    Dumper=yamlloader.ordereddict.CDumper,
-                )
-                writer.write("\n")
+                messages.append({"error": err})
                 continue
             except StopIteration:
                 break
             finally:
                 i += 1
-
-            yaml.dump(
-                msg.as_human_dict(compact=False),
-                writer,
-                default_flow_style=False,
-                sort_keys=False,
-                Dumper=yamlloader.ordereddict.CDumper,
-            )
-
-            writer.write("\n")
             if i % 100 == 0:
                 logger.info("Progress: completed %d so far", i)
 
-        # for i, msg in enumerate(rdr, start=1):
-        #     writer.write(f"---\n# {i}\n")
-        #     if msg is None:
-        #         yaml.dump({"error": "failed to decode packet"}, writer)
-        #     else:
-        #         yaml.dump(
-        #             msg.as_human_dict(compact=False),
-        #             writer,
-        #             default_flow_style=False,
-        #             sort_keys=False,
-        #         )
-        #     writer.write("\n")
-        #     if i % 100 == 0:
-        #         logger.info("Progress: completed %d so far", i)
-
+        logger.info("Progress: Dumping to file")
+        json.dump(obj=messages, fp=writer, cls=SerdeJSONEncoder, indent=2)
     rdr.close()
 
 

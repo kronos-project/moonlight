@@ -8,7 +8,7 @@ import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from os import PathLike
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple, Type
 
 from printrospector.object import DynamicObject
 from printrospector.type_cache import TypeCache
@@ -23,7 +23,8 @@ from .common import (
     PacketHeader,
 )
 
-from .property_object import PropertyObjectDecoder, build_typecache
+from .object_property import PropertyObjectDecoder, build_typecache
+from moonlight.util import HumanReprMixin, SerdeMixin, bytes_to_pretty_str
 
 SERVICE_ID_SIZE = 1
 MESSAGE_ID_SIZE = 1
@@ -31,7 +32,17 @@ MESSAGE_ID_SIZE = 1
 logger = logging.getLogger(__name__)
 
 
-class FieldDef(HumanReprMixin):
+def field_to_serde_keyval(field: "Field") -> Tuple:
+    if field.parsed_type() is bytes:
+        f_format = "pretty bytes"
+        f_value = bytes_to_pretty_str(field.value)
+    else:
+        f_format = field.parsed_type().__name__
+        f_value = field.parsed_value()
+    return (field.name(), {"value": f_value, "format": f_format})
+
+
+class FieldDef(HumanReprMixin, SerdeMixin):
     """
     Definition of a DML field within a message. Used to hold the represented
     xml from message definition files as well as property object decoding
@@ -39,6 +50,7 @@ class FieldDef(HumanReprMixin):
     """
 
     HUMAN_REPR_IGNORE = "po_decoder"
+    SERDE_TRANSIENT = "po_decoder"
 
     # FIXME reduce number of fields. It's okay for now since this isn't
     # part of the public api.
@@ -166,7 +178,7 @@ class FieldDef(HumanReprMixin):
         return f"<FieldDef '{self.name}({self.dml_type})'>"
 
 
-class Field(HumanReprMixin):
+class Field(HumanReprMixin, SerdeMixin):
     """
     Specific instance of a DML field as defined by its `FieldDef`.
 
@@ -175,6 +187,7 @@ class Field(HumanReprMixin):
     """
 
     HUMAN_REPR_IGNORE = ("value", "definition")
+    SERDE_TRANSIENT = ("value", "definition")
     HUMAN_REPR_COMPACT_IGNORE = "noxfer"
     HUMAN_REPR_ORDER_PREPEND = ("name", "value", "dml_type")
     HUMAN_REPR_SYNTHETIC = {
@@ -183,6 +196,14 @@ class Field(HumanReprMixin):
         else x.value,
         "name": lambda x: x.name(),
         "dml_type": lambda x: x.dml_type().as_human_dict(),
+        "noxfer": lambda x: x.noxfer(),
+    }
+    SERDE_SYNTHETIC = {
+        "value": lambda x: x.as_property_object()
+        if x.is_property_object()
+        else x.value,
+        "name": lambda x: x.name(),
+        "dml_type": lambda x: x.dml_type().as_serde_dict(),
         "noxfer": lambda x: x.noxfer(),
     }
 
@@ -218,6 +239,18 @@ class Field(HumanReprMixin):
 
     def noxfer(self):
         return self.definition.noxfer
+
+    def parsed_value(self):
+        if self.is_property_object():
+            return self.as_property_object()
+        else:
+            return self.value
+
+    def parsed_type(self):
+        if self.is_property_object():
+            return DynamicObject
+        else:
+            return type(self.value)
 
     def to_human_dict(self) -> dict:
         return {
@@ -294,6 +327,16 @@ class DMLMessage(Message):
             if field.name == field_name:
                 return field
         raise AttributeError
+
+    def as_serde_dict(self) -> dict[str, Any] | Any:
+        return {
+            **super().as_serde_dict(),
+            "data": {
+                "format": "DML",
+                "name": self.name(),
+                "fields": {k: v for (k, v) in map(field_to_serde_keyval, self.fields)},
+            },
+        }
 
 
 class DMLMessageDef(HumanReprMixin):

@@ -17,4 +17,4 @@ from .dml import (
     DMLProtocol,
     DMLProtocolRegistry,
 )
-from .property_object import PropertyObjectDecoder
+from .object_property import PropertyObjectDecoder
