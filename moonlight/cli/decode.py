@@ -10,7 +10,7 @@ import yaml
 import yamlloader
 
 from moonlight.net import PacketReader
-from moonlight.util import SerdeJSONEncoder
+from moonlight.util import SerdeJSONEncoder, bytes_to_pretty_str
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,8 @@ def pcap(
 
     dump_anydict_as_map(OrderedDict)
 
+    from scapy.layers.inet import TCP
+
     rdr = PcapReader(
         pcap_path=input_f,
         typedef_path=typedefs,
@@ -97,7 +99,16 @@ def pcap(
             try:
                 messages.append(next(rdr))
             except ValueError as err:
-                messages.append({"error": err})
+                messages.append(
+                    {
+                        "error": {
+                            "message": str(err),
+                            "raw": bytes_to_pretty_str(
+                                bytes(rdr.last_decoded_raw[TCP].payload)
+                            ),
+                        }
+                    }
+                )
                 continue
             except StopIteration:
                 break

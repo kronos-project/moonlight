@@ -33,11 +33,20 @@ logger = logging.getLogger(__name__)
 
 
 def field_to_serde_keyval(field: "Field") -> Tuple:
-    if field.parsed_type() is bytes:
-        f_format = "pretty bytes"
+    if isinstance(field.value, bytes):
+        f_format = "STR:hex"
         f_value = bytes_to_pretty_str(field.value)
+    elif isinstance(field.value, str):
+        if len(field.value) < 1:
+            f_format = "STR:hex"
+        else:
+            f_format = "STR:ascii"
+        f_value = field.parsed_value()
     else:
-        f_format = field.parsed_type().__name__
+        if isinstance(field.parsed_type(), DMLType):
+            f_format = field.parsed_type().t_name
+        else:
+            f_format = field.parsed_type().__name__
         f_value = field.parsed_value()
     return (field.name(), {"value": f_value, "format": f_format})
 
@@ -246,11 +255,10 @@ class Field(HumanReprMixin, SerdeMixin):
         else:
             return self.value
 
-    def parsed_type(self):
+    def parsed_type(self) -> Type | DMLType:
         if self.is_property_object():
             return DynamicObject
-        else:
-            return type(self.value)
+        return self.dml_type()
 
     def to_human_dict(self) -> dict:
         return {

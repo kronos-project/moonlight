@@ -13,7 +13,7 @@ from os.path import isfile, join
 from moonlight.net.common import MessageSender, Message
 
 # scapy on import prints warnings about system interfaces
-# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-position disable=wrong-import-order
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.layers.inet import TCP
 from scapy.packet import Packet, Raw
@@ -70,6 +70,8 @@ class PcapReader(PacketReader):
 
         self.pcap_path = pcap_path
         self.pcap_reader = Scapy_PcapReader(filename=str(pcap_path))
+        self.last_decoded: Message = None
+        self.last_decoded_raw: Packet = None
 
     def __iter__(self):
         return self
@@ -79,6 +81,8 @@ class PcapReader(PacketReader):
             packet = self.pcap_reader.next()
             if not is_ki_packet_naive(packet):
                 continue
+            self.last_decoded = None
+            self.last_decoded_raw = packet
             return packet
 
     def __next__(self) -> Message:
@@ -87,6 +91,7 @@ class PcapReader(PacketReader):
         if msg is not None:
             msg.sender = MessageSender.from_capture_port(pkt[TCP].dport)
             msg.timestamp = datetime.fromtimestamp(float(pkt.time))
+        self.last_ki_decoded = msg
         return msg
 
     def close(self):
