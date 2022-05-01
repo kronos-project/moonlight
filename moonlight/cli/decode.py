@@ -59,11 +59,11 @@ def pcap(
     typedefs: Path,
 ):
     """
-    Decode pcap to human-readable YAML
+    Decode pcap to a JSON representation
 
     `moonlight decode pcap` takes a compatible packet capture file (wireshark) and converts all
     unencrypted KI packets within it into a representation intended
-    to be easily read by a human. By default, this is YAML.
+    to be easily read by another computer or human.
 
     A packet is naively considered to be of the KI protocol if it starts with
     the \\x0D\\xF0 magic (little endian F00D). This may be improved in the future.
