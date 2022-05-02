@@ -6,6 +6,7 @@ from datetime import datetime
 import logging
 import os
 from pathlib import Path
+from telnetlib import IP
 import traceback
 from os import PathLike, listdir
 from os.path import isfile, join
@@ -28,7 +29,7 @@ logging.getLogger("scapy.runtime").setLevel(logging.WARNING)
 
 from moonlight.net import (
     PacketReader,
-    PacketHeader,
+    KIHeader,
     SessionAcceptMessage,
     SessionOfferMessage,
 )
@@ -38,16 +39,16 @@ logger = logging.getLogger(__name__)
 SENSITIVE_MSG_OPCODES = [SessionAcceptMessage.OPCODE, SessionOfferMessage.OPCODE]
 
 
+def is_interesting_packet_naive(packet: Packet):
+    return TCP in packet.layers() and isinstance(packet[TCP].payload, Raw)
+
+
 def is_ki_packet_naive(packet: Packet):
-    return (
-        TCP in packet.layers()
-        and isinstance(packet[TCP].payload, Raw)
-        and bytes(packet[TCP].payload).startswith(b"\x0D\xF0")
-    )
+    return bytes(packet[TCP].payload).startswith(b"\x0D\xF0")
 
 
-def is_sensitive_packet_naive(packet: Packet):
-    bytes(packet[TCP].payload).startswith(b"\x0D\xF0")
+def is_flagtool_packet_naive(packet: Packet):
+    return packet[TCP].dport == MessageSender.FLAGTOOL.value
 
 
 class PcapReader(PacketReader):
@@ -76,22 +77,28 @@ class PcapReader(PacketReader):
     def __iter__(self):
         return self
 
-    def next_ki_raw(self):
+    def next_interesting_raw(self):
         while True:
             packet = self.pcap_reader.next()
-            if not is_ki_packet_naive(packet):
+            if not (
+                is_interesting_packet_naive(packet)
+                and (is_ki_packet_naive(packet) or is_flagtool_packet_naive(packet))
+            ):
                 continue
             self.last_decoded = None
             self.last_decoded_raw = packet
             return packet
 
     def __next__(self) -> Message:
-        pkt = self.next_ki_raw()
-        msg = self.decode_packet(bytes(pkt[TCP].payload))
+        pkt = self.next_interesting_raw()
+        if is_flagtool_packet_naive(pkt):
+            msg = self.decode_flagtool_packet(bytes(pkt[TCP].payload))
+        else:  # this is an already checked assumption in next_interesting_raw
+            msg = self.decode_ki_packet(bytes(pkt[TCP].payload))
         if msg is not None:
             msg.sender = MessageSender.from_capture_port(pkt[TCP].dport)
             msg.timestamp = datetime.fromtimestamp(float(pkt.time))
-        self.last_ki_decoded = msg
+        self.last_decoded = msg
         return msg
 
     def close(self):
@@ -125,7 +132,7 @@ class LiveSniffer:
             return
         try:
             bites = bytes(pkt[TCP].payload)
-            message = self.decoder.decode_packet(bites)
+            message = self.decoder.decode_ki_packet(bites)
             logger.info(message)
         except ValueError as err:
             if str(err).startswith("Not a KI game protocol packet."):
@@ -149,7 +156,7 @@ class LiveSniffer:
 
 
 def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
-    header = PacketHeader(payload)
+    header = KIHeader(payload)
     if (
         header.content_is_control
         and header.control_opcode == SessionOfferMessage.OPCODE
@@ -162,7 +169,7 @@ def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
             # millis_into:    4 : 17 - 21
             # signed_msg_len: 4 : 21 - 25
             # signed_msg:     ? : 26 -  ?
-            decoded = pkt_reader.decode_packet(payload)
+            decoded = pkt_reader.decode_ki_packet(payload)
             old_payload = payload
             # Replace signed msg with zeros
             new_payload = (
@@ -192,7 +199,7 @@ def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
             # session_id:     2 : 22 - 24
             # signed_msg_len: 4 : 24 - 28
             # signed_msg:     ? : 28 -  ?
-            decoded = pkt_reader.decode_packet(payload)
+            decoded = pkt_reader.decode_ki_packet(payload)
             old_payload = payload
             # Replace signed msg with zeros
             new_payload = (
@@ -225,8 +232,8 @@ def filter_pcap(
     try:
         i = 1
         while True:
-            packet = reader.next_ki_raw()
-            if sanitize and PacketHeader(bytes(packet[TCP].payload)).content_is_control:
+            packet = reader.next_interesting_raw()
+            if sanitize and is_ki_packet_naive(packet) and KIHeader(bytes(packet[TCP].payload)).content_is_control:
                 try:
                     dirty_data = bytes(packet[TCP].payload)
                     sanitized_data = sanitize_signed_msg(reader, dirty_data)
@@ -240,7 +247,7 @@ def filter_pcap(
             writer.write(packet)
             i += 1
             if i % 100 == 0:
-                logger.info("Filtering in progress. Found %s KI packets so far", i)
+                logger.info("Filtering in progress. Found %s interesting packets so far", i)
     except StopIteration:
         pass
     except KeyboardInterrupt:

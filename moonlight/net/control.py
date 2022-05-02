@@ -9,7 +9,7 @@ import struct
 from typing import Any
 from .common import (
     BytestreamReader,
-    PacketHeader,
+    KIHeader,
     Message,
     PACKET_HEADER_LEN,
     DMLType,
@@ -75,7 +75,7 @@ class SessionOfferMessage(ControlMessage):
         cls,
         reader: BytestreamReader | bytes,
         original_bytes: bytes = None,
-        packet_header: PacketHeader = None,
+        ki_header: KIHeader = None,
         has_ki_header=False,
     ) -> ControlMessage:
         if isinstance(reader, bytes):
@@ -91,7 +91,7 @@ class SessionOfferMessage(ControlMessage):
 
         return cls(
             original_bytes=original_bytes,
-            packet_header=packet_header,
+            ki_header=ki_header,
             session_id=session_id,
             unix_timestamp_seconds=sec_timestamp,
             unix_timestamp_millis_into_second=millis_into_sec_timestamp,
@@ -142,7 +142,7 @@ class SessionAcceptMessage(ControlMessage):
         cls,
         reader: BytestreamReader | bytes,
         original_data: bytes = None,
-        packet_header: PacketHeader = None,
+        ki_header: KIHeader = None,
         has_ki_header=False,
     ) -> ControlMessage:
         if isinstance(reader, bytes):
@@ -159,7 +159,7 @@ class SessionAcceptMessage(ControlMessage):
 
         return cls(
             original_bytes=original_data,
-            packet_header=packet_header,
+            ki_header=ki_header,
             reserved_start=reserved_start,
             unix_timestamp_seconds=sec_timestamp,
             unix_timestamp_millis_into_second=millis_into_sec_timestamp,
@@ -231,7 +231,7 @@ class KeepAliveMessage(ControlMessage):
         cls,
         reader: BytestreamReader | bytes,
         original_data: bytes = None,
-        packet_header: PacketHeader = None,
+        ki_header: KIHeader = None,
         has_ki_header=False,
     ) -> ControlMessage:
         if isinstance(reader, bytes):
@@ -244,7 +244,7 @@ class KeepAliveMessage(ControlMessage):
 
         return cls(
             original_bytes=original_data,
-            packet_header=packet_header,
+            ki_header=ki_header,
             session_id=session_id,
             variable_timestamp=variable_timestamp,
         )
@@ -270,7 +270,7 @@ class ControlProtocol:
     def decode_packet(  # pylint: disable=no-self-use
         self,
         bites: BytestreamReader | bytes,
-        header: PacketHeader,
+        header: KIHeader,
         original_data: bytes = None,
         has_ki_header: bool = True,
     ) -> ControlMessage:
@@ -298,28 +298,28 @@ class ControlProtocol:
         opcode = header.control_opcode
         if opcode == SessionOfferMessage.OPCODE:
             return SessionOfferMessage.from_bytes(
-                packet_header=header,
+                ki_header=header,
                 reader=bites,
                 original_bytes=original_data,
                 has_ki_header=has_ki_header,
             )
         if opcode == SessionAcceptMessage.OPCODE:
             return SessionAcceptMessage.from_bytes(
-                packet_header=header,
+                ki_header=header,
                 reader=bites,
                 original_data=original_data,
                 has_ki_header=has_ki_header,
             )
         if opcode == KeepAliveMessage.OPCODE:
             return KeepAliveMessage.from_bytes(
-                packet_header=header,
+                ki_header=header,
                 reader=bites,
                 original_data=original_data,
                 has_ki_header=has_ki_header,
             )
         if opcode == KeepAliveResponseMessage.OPCODE:
             return KeepAliveResponseMessage.from_bytes(
-                packet_header=header,
+                ki_header=header,
                 reader=bites,
                 original_data=original_data,
                 has_ki_header=has_ki_header,

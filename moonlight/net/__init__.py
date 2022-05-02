@@ -8,7 +8,7 @@ from .control import (
     KeepAliveMessage,
     KeepAliveResponseMessage,
 )
-from .common import DMLType, PacketHeader
+from .common import DMLType, KIHeader
 from .dml import (
     Field as DMLField,
     FieldDef as DMLFieldDef,

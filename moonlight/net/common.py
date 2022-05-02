@@ -43,12 +43,12 @@ class MessageSender(HumanReprMixin, SerdeMixin, Enum):
 @dataclass(init=True, repr=True, kw_only=True)
 class Message(HumanReprMixin, SerdeMixin):
     original_bytes: bytes
-    packet_header: PacketHeader = None
+    ki_header: KIHeader = None
     sender: MessageSender | None = None
     timestamp: datetime | None = None
 
     HUMAN_REPR_ORDER_PREPEND = ("timestamp", "sender")
-    HUMAN_REPR_ORDER_APPEND = ("packet_header", "original_bytes")
+    HUMAN_REPR_ORDER_APPEND = ("ki_header", "original_bytes")
 
     def as_serde_dict(self) -> dict[str, Any] | Any:
         # Override as we are doing more than the mixin is intended for
@@ -81,6 +81,7 @@ class DMLType(HumanReprMixin, SerdeMixin, Enum):
     """
 
     # Basic types
+    BOOL = ("bool", 1, "<?")
     INT8 = ("int8", 1, "<b")
     UINT8 = ("uint8", 1, "<B")
     INT16 = ("int16", 2, "<h")
@@ -299,7 +300,7 @@ class BytestreamReader:
         return self.__str__()
 
 
-class PacketHeader(HumanReprMixin, SerdeMixin):
+class KIHeader(HumanReprMixin, SerdeMixin):
     """Dataclass holding the KI packet header fields.
 
     Note: Passing in a BytestreamReader instead of bytes will change the current

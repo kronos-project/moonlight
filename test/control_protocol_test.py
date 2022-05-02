@@ -2,7 +2,7 @@ import pytest
 from moonlight.net import (
     ControlMessage,
     ControlProtocol,
-    PacketHeader,
+    KIHeader,
 )
 from .fixtures import *
 
@@ -13,7 +13,7 @@ def control_protocol():
 
 
 def test_session_offer(control_protocol: ControlProtocol, control_session_offer):
-    header = PacketHeader(control_session_offer)
+    header = KIHeader(control_session_offer)
     message = control_protocol.decode_packet(
         control_session_offer, header, has_ki_header=True
     )
@@ -44,7 +44,7 @@ def test_session_offer(control_protocol: ControlProtocol, control_session_offer)
 
 
 def test_session_accept(control_protocol, control_session_accept):
-    header = PacketHeader(control_session_accept)
+    header = KIHeader(control_session_accept)
     message = control_protocol.decode_packet(
         control_session_accept, header, has_ki_header=True
     )

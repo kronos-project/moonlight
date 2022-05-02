@@ -91,8 +91,6 @@ def pcap(
         silence_decode_errors=False,
     )
     with open(output_f, "w", encoding="utf8") as writer:
-        # TODO: write metadata
-        i = 1
         messages = []
         i = 1
         while True:
@@ -118,6 +116,7 @@ def pcap(
                 logger.info("Progress: completed %d so far", i)
 
         logger.info("Progress: Dumping to file")
+        breakpoint()
         json.dump(obj=messages, fp=writer, cls=SerdeJSONEncoder, indent=2)
     rdr.close()
 
@@ -194,8 +193,7 @@ def packet(  # pylint: disable=too-many-arguments
         typedef_path=typedefs,
         msg_def_folder=message_def_dir,
     )
-    # TODO: write metadata
-    msg = rdr.decode_packet(input)
+    msg = rdr.decode_ki_packet(input)
     print()
     if msg is None:
         yaml.dump({"error": "failed to decode packet"}, sys.stdout)
