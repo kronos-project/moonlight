@@ -1,9 +1,11 @@
 [tool.poetry]
 name = "moonlight"
-version = "0.1.0"
+version = "0.2.0"
 description = "Wizard101 MITM agent"
-authors = ["NA"]
-license = "MIT"
+authors = ["Ethan Zeigler <ethanzeigler@gmail.com>", "Kronos Authors <>"]
+license = "GPL-3.0-only"
+readme = "README.md"
+repository = "https://github.com/kronos-project/moonlight"
 include = [
     "moonlight",
     "res",
@@ -23,8 +25,6 @@ click = "^8.0.4"
 colorama = "^0.4.4"
 PyYAML = "^6.0"
 yamlloader = "^1.1.0"
-fastapi = {extras = ["uvicorn"], version = "^0.75.2"}
-ariadne = "^0.15.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
@@ -33,7 +33,6 @@ pre-commit = "^2.17.0"
 ipython = "^8.1.1"
 ipykernel = "^6.9.2"
 snakeviz = "^2.1.1"
-uvicorn = "^0.17.6"
 
 [tool.poetry.scripts]
 moonlight = "moonlight.__main__:cli_cmd"
