@@ -53,7 +53,6 @@ class PacketReader:
             # error handling and returns are dependent on reader settings
             return self._handle_decode_exc(err, bites)
 
-
     def decode_ki_packet(self, bites: bytes) -> Message:
         if isinstance(bites, bytes):
             reader = BytestreamReader(bites)

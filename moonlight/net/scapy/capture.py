@@ -233,7 +233,11 @@ def filter_pcap(
         i = 1
         while True:
             packet = reader.next_interesting_raw()
-            if sanitize and is_ki_packet_naive(packet) and KIHeader(bytes(packet[TCP].payload)).content_is_control:
+            if (
+                sanitize
+                and is_ki_packet_naive(packet)
+                and KIHeader(bytes(packet[TCP].payload)).content_is_control
+            ):
                 try:
                     dirty_data = bytes(packet[TCP].payload)
                     sanitized_data = sanitize_signed_msg(reader, dirty_data)
@@ -247,7 +251,9 @@ def filter_pcap(
             writer.write(packet)
             i += 1
             if i % 100 == 0:
-                logger.info("Filtering in progress. Found %s interesting packets so far", i)
+                logger.info(
+                    "Filtering in progress. Found %s interesting packets so far", i
+                )
     except StopIteration:
         pass
     except KeyboardInterrupt:

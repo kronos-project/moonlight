@@ -23,30 +23,30 @@ class FlagtoolMessage(Message):
                 "fields": {
                     "serializer_hash": {
                         "value": self.serializer_hash,
-                        "format": DMLType.UINT32.as_serde_dict()
+                        "format": DMLType.UINT32.as_serde_dict(),
                     },
                     "flags": {
                         "value": self.flags,
-                        "format": DMLType.UINT32.as_serde_dict()
+                        "format": DMLType.UINT32.as_serde_dict(),
                     },
                     "serializer_flags": {
                         "value": self.serializer_flags,
-                        "format": DMLType.UINT32.as_serde_dict()
+                        "format": DMLType.UINT32.as_serde_dict(),
                     },
                     "is_save": {
                         "value": self.is_save,
-                        "format": DMLType.BOOL.as_serde_dict()
+                        "format": DMLType.BOOL.as_serde_dict(),
                     },
                     "is_exhaustive": {
                         "value": self.is_exhaustive,
-                        "format": DMLType.BOOL.as_serde_dict()
+                        "format": DMLType.BOOL.as_serde_dict(),
                     },
                     "serializer_type": {
                         "value": self.serializer_type,
-                        "format": DMLType.UINT8.as_serde_dict()
+                        "format": DMLType.UINT8.as_serde_dict(),
                     },
-                }
-            }
+                },
+            },
         }
 
     @classmethod
@@ -71,5 +71,5 @@ class FlagtoolMessage(Message):
             serializer_flags=serializer_flags,
             is_save=is_save,
             is_exhaustive=is_exhaustive,
-            serializer_type=serializer_type
+            serializer_type=serializer_type,
         )

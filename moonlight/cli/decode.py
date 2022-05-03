@@ -116,7 +116,6 @@ def pcap(
                 logger.info("Progress: completed %d so far", i)
 
         logger.info("Progress: Dumping to file")
-        breakpoint()
         json.dump(obj=messages, fp=writer, cls=SerdeJSONEncoder, indent=2)
     rdr.close()
 
