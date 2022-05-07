@@ -1,5 +1,3 @@
-# Why are these DML files here again?
+# Why are these DML files here?
 
-We don't want to have to update the logic within the tests
-each time the DML message protocol changes. Therefore, it makes
-more sense for us to have "duplicates" and keep tests working.
+They're actually completely fake. Take a look for yourself. They aren't even using the same old XML syntax.
