@@ -1,5 +1,5 @@
 import pytest
-from moonlight.net import DMLType, DMLField, DMLFieldDef, PropertyObjectDecoder
+from moonlight.net import DMLType, DMLField, DMLFieldDef, ObjectPropertyDecoder
 from .fixtures import character_property_object, create_character_field_def, typecache
 import struct
 
@@ -10,6 +10,9 @@ def test_character_data(
     field_def = create_character_field_def
     field_def.po_decoder.set_typecache(typecache, "FIXTURES")
     field = DMLField(character_property_object, field_def)
+    field.definition.po_decoder.exhaustive = False
+    field.definition.po_decoder.flags = 0
+    field.definition.po_decoder.property_mask = 24
     po = field.as_property_object()
 
     # main object

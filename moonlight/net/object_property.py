@@ -21,7 +21,7 @@ def _str_to_int(val):
     return val if val is None else int(val)
 
 
-class PropertyObjectDecoder:
+class ObjectPropertyDecoder:
     """
     Wrapper for printrospector's parser that abstracts needing to deal with
     managing both a serializer and typedef cache

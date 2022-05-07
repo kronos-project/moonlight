@@ -81,7 +81,7 @@ class HumanReprMixin:
     HUMAN_REPR_ORDER_PREPEND: Tuple[str] = ()
     HUMAN_REPR_ORDER_APPEND: Tuple[str] = ()
 
-    def as_human_dict(self, compact=True) -> dict[str, Any] | Any:
+    def as_human_dict(self, compact=True) -> Any:
         keypairs: dict[str, Any] = {}
 
         if self.HUMAN_REPR_REPR_ON_COMPACT:

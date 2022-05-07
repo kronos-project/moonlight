@@ -1,9 +1,9 @@
-from ariadne import gql
+# from ariadne import gql
 
-type_defs = gql(
-    """
-    type Query {
-        hello String!
-    }
-"""
-)
+# type_defs = gql(
+#     """
+#     type Query {
+#         hello String!
+#     }
+# """
+# )

@@ -61,7 +61,7 @@ KI uses a custom data transfer language called DML (data markup language [ironic
 To get these files, there are several open source programs in the wild that can be used.
 - [WizWalker](https://github.com/StarrFox/wizwalker)
 - [KIWad (a kronos team project)](https://github.com/kronos-project/kiwad)
-- quickbms if you're able to get it
+- quickbms if you're able to get it, but not recommended
 
 Extract the `root.wad` file within the KI data folder using one of the above tools. All messages can be pulled out of the directory tree with the following commands.
 
@@ -75,7 +75,16 @@ find . | grep -iE "Messages[0-9]?.xml" | xargs -I % cp % $EXPORT_FOLDER
 ```
 
 ### WizWalker Typedefs
-The [WizWalker](https://github.com/StarrFox/wizwalker) tool is capable of poking around the `WizardGraphicalClient.exe` file and grabbing information on the structure of the game's internal objects. These are needed to turn a significant number of DML message fields that are in plain binary back into readable information. Note that moonlight  **does not require** these typedefs and will work normally without them, but the contents of mny DML messages will still be garbled.
+The [WizWalker](https://github.com/StarrFox/wizwalker) tool is capable of poking around the `WizardGraphicalClient.exe` file and grabbing information on the structure of the game's internal objects. These are needed to turn a significant number of DML message fields that are in plain binary back into readable information. Note that moonlight **does not require** these typedefs and will work normally without them, but the contents of many DML messages will still be garbled.
+
+Instructions to generate this are as follows. *It will only work on Windows.*
+
+```bash
+pip install https://github.com/StarrFox/wizwalker@memory_obj_rewrite
+# open program
+wizwalker dump json
+# new json file named after version in folder; poggers
+```
 
 ### Netpack Flag Tool
 Netpack's flag tool data is needed alongside wizwalker typedefs in order to fully decode many DML messages. This is still a WIP effort and Kronos-team internal.

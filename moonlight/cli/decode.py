@@ -1,3 +1,4 @@
+from email import message
 from pathlib import Path
 import logging
 import sys
@@ -11,6 +12,8 @@ import yamlloader
 
 from moonlight.net import PacketReader
 from moonlight.util import SerdeJSONEncoder, bytes_to_pretty_str
+
+from ._util import message_def_dir_arg, typedef_option
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +36,8 @@ def _represent_dictorder(self, data):
     return self.represent_mapping("tag:yaml.org,2002:map", data.items())
 
 
-@click.command()
-@click.argument(
-    "message_def_dir",
-    type=click.Path(exists=True, dir_okay=True, resolve_path=True, path_type=Path),
-)
+@decode.command()
+@message_def_dir_arg
 @click.argument(
     "input_f",
     type=click.Path(exists=True, file_okay=True, resolve_path=True, path_type=Path),
@@ -46,12 +46,7 @@ def _represent_dictorder(self, data):
     "output_f",
     type=click.Path(file_okay=True, resolve_path=True, path_type=Path),
 )
-@click.option(
-    "-t",
-    "--typedefs",
-    default=None,
-    type=click.Path(file_okay=True, exists=True, resolve_path=True, path_type=Path),
-)
+@typedef_option
 def pcap(
     message_def_dir: Path,
     input_f: Path,
@@ -123,7 +118,7 @@ def pcap(
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-@click.command()
+@decode.command()
 @click.argument(
     "message_def_dir",
     type=click.Path(exists=True, dir_okay=True, resolve_path=True, path_type=Path),
@@ -193,7 +188,7 @@ def packet(  # pylint: disable=too-many-arguments
         msg_def_folder=message_def_dir,
     )
     msg = rdr.decode_ki_packet(input)
-    print()
+    click.echo()
     if msg is None:
         yaml.dump({"error": "failed to decode packet"}, sys.stdout)
     else:
@@ -204,10 +199,6 @@ def packet(  # pylint: disable=too-many-arguments
             sort_keys=False,
             Dumper=yamlloader.ordereddict.CDumper,
         )
-
-
-decode.add_command(pcap)
-decode.add_command(packet)
 
 
 def register(group: click.Group):

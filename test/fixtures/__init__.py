@@ -4,7 +4,7 @@ from os.path import *
 
 import pytest
 from moonlight.net.dml import FieldDef
-from moonlight.net.property_object import build_typecache
+from moonlight.net.object_property import build_typecache
 
 this_folder = dirname(__file__)
 
@@ -47,13 +47,3 @@ def control_session_offer():
 @pytest.fixture
 def control_session_accept():
     return load_packet("ctrl_session_accept.bin")
-
-
-@pytest.fixture
-def dml_leave_lot():
-    return load_packet("dml_leave_lot.bin")
-
-
-@pytest.fixture
-def dml_update_poi():
-    return load_packet("dml_update_poi.bin")

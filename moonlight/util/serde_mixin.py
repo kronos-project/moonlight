@@ -9,7 +9,7 @@ class SerdeMixin:
     SERDE_SYNTHETIC: dict[str, LambdaType]
     SERDE_RENAME: dict[str, str]
 
-    def as_serde_dict(self) -> dict[str, Any] | Any:
+    def as_serde_dict(self) -> Any:
         keypairs: dict[str, Any] = {}
 
         for key, val in vars(self).items():
@@ -44,6 +44,10 @@ class SerdeMixin:
 
         return keypairs
 
+    @classmethod
+    def from_serde_dict(cls, data: Any, ctx: dict[str, Any] = {}) -> SerdeMixin:
+        pass
+
     # @classmethod
     # def from_serde_dict(cls):
     #     raise NotImplementedError
@@ -69,5 +73,4 @@ class SerdeJSONEncoder(JSONEncoder):
                 else:
                     tmp.append(val.__dict__)
             return tmp
-        else:
-            return o.__dict__
+        return o.__dict__

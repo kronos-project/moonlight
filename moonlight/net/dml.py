@@ -23,7 +23,7 @@ from .common import (
     KIHeader,
 )
 
-from .object_property import PropertyObjectDecoder, build_typecache
+from .object_property import ObjectPropertyDecoder, build_typecache
 from moonlight.util import HumanReprMixin, SerdeMixin, bytes_to_pretty_str
 
 SERVICE_ID_SIZE = 1
@@ -76,7 +76,7 @@ class FieldDef(HumanReprMixin, SerdeMixin):
     ) -> None:
         self.name = name
         self.dml_type = dml_type
-        self.po_decoder = PropertyObjectDecoder(
+        self.po_decoder = ObjectPropertyDecoder(
             typedef_path=property_object_typedef_path,
             typecache=property_object_typecache,
             flags=property_object_flags,
@@ -150,6 +150,7 @@ class FieldDef(HumanReprMixin, SerdeMixin):
         Returns:
             FieldDef: representation of the message definition xml
         """
+
         exhaustive = node.attrib.get("PO_EXHAUSTIVE")
         if exhaustive is None:
             pass
@@ -238,6 +239,7 @@ class Field(HumanReprMixin, SerdeMixin):
         Returns:
             DynamicObject | None: Property object representation of the field
         """
+
         return self.definition.decode_represented_property_object(field=self)
 
     def name(self):
@@ -409,24 +411,28 @@ class DMLMessageDef(HumanReprMixin):
             else:
                 field_map["dml_type"] = DMLType.from_str(dirty_type)
 
-            field_map["property_object_flags"] = DMLType.from_str(
-                xml_field.attrib.get("PO_FLAGS")
-            )
-            field_map["property_object_mask"] = xml_field.attrib.get("PO_MASK")
-            field_map["property_object_exhaustive"] = xml_field.attrib.get(
-                "PO_EXHAUSTIVE"
-            )
+            # FIXME: Proper handling of property object loading
+            field_map["property_object_flags"] = None
+            field_map["property_object_mask"] = None
+            field_map["property_object_exhaustive"] = None
+            # field_map["property_object_flags"] = DMLType.from_str(
+            #     xml_field.attrib.get("PO_FLAGS")
+            # )
+            # field_map["property_object_mask"] = xml_field.attrib.get("PO_MASK")
+            # field_map["property_object_exhaustive"] = xml_field.attrib.get(
+            #     "PO_EXHAUSTIVE"
+            # )
             field_map["noxfer"] = xml_field.attrib.get("NOXFER") == "TRUE"
             self.fields.append(FieldDef(**field_map))
 
-    def get_field(self, name: str) -> map:  # sourcery skip: use-next
+    def get_field(self, name: str) -> Field | None:  # sourcery skip: use-next
         """Finds and returns the field matching the given name
 
         Args:
             name (str): name of the field to retreive
 
         Returns:
-            map: attributes in the field DML definition
+            Field: attributes in the field DML definition
         """
         for field in self.fields:
             if field["name"] == name:
@@ -474,11 +480,11 @@ class DMLMessageDef(HumanReprMixin):
             fields = {self.fields}"""
 
     @staticmethod
-    def list_to_id_map(defs) -> map:
+    def list_to_id_map(defs) -> dict[int, DMLMessageDef]:
         """Sorts a list of messages, assigns ids, and returns the mapping
 
         Args:
-            list ([DMLMessageDef]): list of DMLMessageDefs to sort and assign ids
+            defs ([DMLMessageDef]): list of DMLMessageDefs to sort and assign ids
         """
         # sort on the order number, or definition name if undefined
         # FIXME: is there a case where both are given?
@@ -566,7 +572,7 @@ class DMLProtocol:
             has_service_id (bool, optional): [description]. Defaults to False.
 
         Raises:
-            Exception: [description]
+            ValueError: [description] # TODO: complete and add some kind of doc linter
 
         Returns:
             [type]: [description]
@@ -620,8 +626,8 @@ class DMLProtocolRegistry:
             logger.debug("\t%s", repr(msg))
         self.protocol_map[protocol.id] = protocol
 
-    def get_by_id(self, id: int):
-        return self.protocol_map[id]
+    def get_by_id(self, id_: int):
+        return self.protocol_map[id_]
 
     def load_typedef(self, typedef_path: PathLike):
         cache = build_typecache(typedef_path)

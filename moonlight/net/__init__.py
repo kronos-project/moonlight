@@ -8,7 +8,7 @@ from .control import (
     KeepAliveMessage,
     KeepAliveResponseMessage,
 )
-from .common import DMLType, KIHeader
+from .common import DMLType, KIHeader, Message, MessageSender
 from .dml import (
     Field as DMLField,
     FieldDef as DMLFieldDef,
@@ -17,4 +17,5 @@ from .dml import (
     DMLProtocol,
     DMLProtocolRegistry,
 )
-from .object_property import PropertyObjectDecoder
+from .object_property import ObjectPropertyDecoder
+from .flagtool import FlagtoolMessage

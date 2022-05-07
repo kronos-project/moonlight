@@ -3,7 +3,7 @@ from os.path import isfile, join
 from posix import listdir
 
 from moonlight.net import DMLProtocolRegistry
-from .fixtures import dml_update_poi
+from .fixtures import load_packet
 
 import pytest
 from moonlight.net import DMLType
@@ -17,65 +17,71 @@ def dml_protocol() -> DMLProtocolRegistry:
     return DMLProtocolRegistry(*protocols)
 
 
-@pytest.fixture
-def game_messages_interactable_options() -> bytes:
-    return (
-        b"\r\xf0\x12\x00\x00\x00\x00\x00\x05\xda\r\x00\xde\xf4" b"r\x02\\\xfbQ.\x00\x00"
-    )
-
-
-@pytest.fixture
-def game_messages_correct_loc() -> bytes:
-    return (
-        b"\r\xf0\x12\x00\x00\x00\x00\x00\x05"
-        b"w\r\x003\x18y\x05\x00\x00\x06\x00\x00\x00"
-    )
-
-
-def test_decode_poi(dml_protocol: DMLProtocolRegistry, dml_update_poi: bytes):
-    obj = dml_protocol.decode_packet(dml_update_poi)
+def test_decode_dml(dml_protocol: DMLProtocolRegistry):
+    bites = load_packet("dml_proto1_fake.bin")
+    obj = dml_protocol.decode_packet(bites)
     assert obj is not None
-    assert obj.order_id == 31
-    assert obj.protocol().id == 53
-    assert obj.desc() == "Server updating the POI data"
-    assert obj.protocol().desc == "Wizard Messages2"
-    assert len(obj.fields) == 1
-    assert obj.fields[0].name() == "Data"
-    assert obj.fields[0].dml_type() is DMLType.STR
-    assert (
-        obj.fields[0].value
-        == b'\xdc\x1d\x91a\x0b\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1f\x00GUI/Minimap/BG_Sigil_Spiral.ddsl^\x0e\x00\x00\x00;"\xf1\x1d@A>;\x07A\x1d\xca\xf8?\x00\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1c\x00GUI/Minimap/BG_Sigil_Sun.ddsx^\x0e\x00\x00\x00;"\xd5:\xa0\xc5\xa6]P\xc5\xeeg\x16D\x00\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1c\x00GUI/Minimap/BG_Sigil_Eye.dds\x80^\x0e\x00\x00\x00;"F2gE\xbc\xf1\xc4\xc5\xe9v\x16D\x00\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1d\x00GUI/Minimap/BG_Sigil_Moon.dds\x8c^\x0e\x00\x00\x00;"\x85\xf1\x9fE\xe7\xd9OE\x00t\x16D\x00\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1d\x00GUI/Minimap/BG_Sigil_Star.dds\x94^\x0e\x00\x00\x00;"H\xc3f\xc5\xac3\xc5E\x00\x80\x16D\x00\x00\x00\x00\xdc\x15!"\x05\x00\x00\x00\x00\x00\x93\x99\xfb\x00\x00\x00\xaa\x02\x00\xa0J\xc6\x00\x80\xf2D\x00\x80\x94\xc5\xcd\xcc\x84@\xdc\x15!"\x05\x00\x00\x00\x00\x00\x03\x9b\x11\x01\x00\x00\xab\x02\x00@)\xc6\x00\x80\x13E\x00\x80\x94\xc5\xcd\xccd@\xdc\x15!"\x05\x00\x00\x00\x00\x00\xfbbK\x04\x00\x00\x07\x00\x000L\xc6\x00\xc0\x07E\x00\x80\x94\xc5ff\x96@\xdc\x15!"\x05\x00\x00\x00\x00\x00~3\r\x01\x00\x00\x06\x00\x00`8\xc6\x00@\x15E\x00\x80\x94\xc5ff\x96@\xdc\x15!"\x05\x00\x00\x00\x00\x003\x18y\x05\x00\x00\x06\x00\x00\xd0-\xc6\x00@\x18E\x00\x80\x94\xc5\x9a\x99\x9d@\xdc\x15!"\x05\x00\x00\x00\x00\x00#\xcb`\x01\x00\x00\xaa\x02\x00 2\xc6\x00\x80\x1cE\x00\x80\x94\xc533\x03@'
-    )
+    assert obj.order_id == 1
+    assert obj.protocol().id == 1
+    assert obj.desc() == "I needed fake definitions"
+    assert obj.protocol().desc == "FAKE MESSAGES 1"
+    assert len(obj.fields) == 19
+    assert obj.fields[0].name() == "TestField_00_INT8"
+    assert obj.fields[1].name() == "TestField_01_UINT8"
+    assert obj.fields[2].name() == "TestField_02_INT16"
+    assert obj.fields[3].name() == "TestField_03_UINT16"
+    assert obj.fields[4].name() == "TestField_04_INT32"
+    assert obj.fields[5].name() == "TestField_05_UINT32"
+    assert obj.fields[6].name() == "TestField_06_FLOAT32"
+    assert obj.fields[7].name() == "TestField_07_UINT64"
+    assert obj.fields[8].name() == "TestField_08_BYT"
+    assert obj.fields[9].name() == "TestField_09_UBYT"
+    assert obj.fields[10].name() == "TestField_0A_SHRT"
+    assert obj.fields[11].name() == "TestField_0B_USHRT"
+    assert obj.fields[12].name() == "TestField_0C_INT"
+    assert obj.fields[13].name() == "TestField_0D_UINT"
+    assert obj.fields[14].name() == "TestField_0E_FLT"
+    assert obj.fields[15].name() == "TestField_0F_DBL"
+    assert obj.fields[16].name() == "TestField_10_GID"
+    assert obj.fields[17].name() == "TestField_11_STR"
+    assert obj.fields[18].name() == "TestField_12_STR"
 
+    assert obj.fields[0].value == 0
+    assert obj.fields[1].value == 16
+    assert obj.fields[2].value == 8480
+    assert obj.fields[3].value == 12592
+    assert obj.fields[4].value == 1128415552
+    assert obj.fields[5].value == 1397903696
+    assert obj.fields[6].value == 4.175980768877802e21
+    assert obj.fields[7].value == 8608196880778817904
+    assert obj.fields[8].value == -128
+    assert obj.fields[9].value == 144
+    assert obj.fields[10].value == -24160
+    assert obj.fields[11].value == 45488
+    assert obj.fields[12].value == -1010646592
+    assert obj.fields[13].value == 3553808848
+    assert obj.fields[14].value == -8.370480339423351e21
+    assert obj.fields[15].value == -7.581280411902108e269
+    assert obj.fields[16].value == 506097522914230528
+    assert obj.fields[17].value == "FOOBAR"
+    assert obj.fields[18].value == b"abc123\xed\xee\xef"
 
-def test_decode_correct_loc(
-    dml_protocol: DMLProtocolRegistry, game_messages_correct_loc: bytes
-):
-    obj = dml_protocol.decode_packet(game_messages_correct_loc)
-    assert obj is not None
-    assert obj.order_id == 119
-    assert obj.protocol().id == 5
-    assert obj.desc() == "The server is changing the movement state on a mobile"
-    assert obj.protocol().desc == "Game Messages"
-    assert len(obj.fields) == 2
-    assert obj.fields[0].name() == "GlobalID"
-    assert obj.fields[0].dml_type() is DMLType.GID
-    assert obj.fields[0].value == 1688849952086067
-
-
-def test_decode_interact_options(
-    dml_protocol: DMLProtocolRegistry, dml_update_poi: bytes
-):
-    obj = dml_protocol.decode_packet(dml_update_poi)
-    assert obj is not None
-    assert obj.order_id == 31
-    assert obj.protocol().id == 53
-    assert obj.desc() == "Server updating the POI data"
-    assert obj.protocol().desc == "Wizard Messages2"
-    assert len(obj.fields) == 1
-    assert obj.fields[0].name() == "Data"
-    assert obj.fields[0].dml_type() is DMLType.STR
-    assert (
-        obj.fields[0].value
-        == b'\xdc\x1d\x91a\x0b\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1f\x00GUI/Minimap/BG_Sigil_Spiral.ddsl^\x0e\x00\x00\x00;"\xf1\x1d@A>;\x07A\x1d\xca\xf8?\x00\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1c\x00GUI/Minimap/BG_Sigil_Sun.ddsx^\x0e\x00\x00\x00;"\xd5:\xa0\xc5\xa6]P\xc5\xeeg\x16D\x00\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1c\x00GUI/Minimap/BG_Sigil_Eye.dds\x80^\x0e\x00\x00\x00;"F2gE\xbc\xf1\xc4\xc5\xe9v\x16D\x00\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1d\x00GUI/Minimap/BG_Sigil_Moon.dds\x8c^\x0e\x00\x00\x00;"\x85\xf1\x9fE\xe7\xd9OE\x00t\x16D\x00\x00\x00\x00\xdc\x15!"\x08\x00\x00\x00\x1d\x00GUI/Minimap/BG_Sigil_Star.dds\x94^\x0e\x00\x00\x00;"H\xc3f\xc5\xac3\xc5E\x00\x80\x16D\x00\x00\x00\x00\xdc\x15!"\x05\x00\x00\x00\x00\x00\x93\x99\xfb\x00\x00\x00\xaa\x02\x00\xa0J\xc6\x00\x80\xf2D\x00\x80\x94\xc5\xcd\xcc\x84@\xdc\x15!"\x05\x00\x00\x00\x00\x00\x03\x9b\x11\x01\x00\x00\xab\x02\x00@)\xc6\x00\x80\x13E\x00\x80\x94\xc5\xcd\xccd@\xdc\x15!"\x05\x00\x00\x00\x00\x00\xfbbK\x04\x00\x00\x07\x00\x000L\xc6\x00\xc0\x07E\x00\x80\x94\xc5ff\x96@\xdc\x15!"\x05\x00\x00\x00\x00\x00~3\r\x01\x00\x00\x06\x00\x00`8\xc6\x00@\x15E\x00\x80\x94\xc5ff\x96@\xdc\x15!"\x05\x00\x00\x00\x00\x003\x18y\x05\x00\x00\x06\x00\x00\xd0-\xc6\x00@\x18E\x00\x80\x94\xc5\x9a\x99\x9d@\xdc\x15!"\x05\x00\x00\x00\x00\x00#\xcb`\x01\x00\x00\xaa\x02\x00 2\xc6\x00\x80\x1cE\x00\x80\x94\xc533\x03@'
-    )
+    assert obj.fields[0].dml_type() is DMLType.INT8
+    assert obj.fields[1].dml_type() is DMLType.UINT8
+    assert obj.fields[2].dml_type() is DMLType.INT16
+    assert obj.fields[3].dml_type() is DMLType.UINT16
+    assert obj.fields[4].dml_type() is DMLType.INT32
+    assert obj.fields[5].dml_type() is DMLType.UINT32
+    assert obj.fields[6].dml_type() is DMLType.FLOAT32
+    assert obj.fields[7].dml_type() is DMLType.UINT64
+    assert obj.fields[8].dml_type() is DMLType.BYT
+    assert obj.fields[9].dml_type() is DMLType.UBYT
+    assert obj.fields[10].dml_type() is DMLType.SHRT
+    assert obj.fields[11].dml_type() is DMLType.USHRT
+    assert obj.fields[12].dml_type() is DMLType.INT
+    assert obj.fields[13].dml_type() is DMLType.UINT
+    assert obj.fields[14].dml_type() is DMLType.FLT
+    assert obj.fields[15].dml_type() is DMLType.DBL
+    assert obj.fields[16].dml_type() is DMLType.GID
+    assert obj.fields[17].dml_type() is DMLType.STR
+    assert obj.fields[18].dml_type() is DMLType.STR

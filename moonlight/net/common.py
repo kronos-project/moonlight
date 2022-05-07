@@ -91,6 +91,8 @@ class DMLType(HumanReprMixin, SerdeMixin, Enum):
     FLOAT32 = ("float32", 4, "<f")
     FLOAT64 = ("float64", 8, "<d")
     UINT64 = ("uint64", 8, "<q")
+    # TODO lol i forgot int64
+
     # DML specific
     BYT = ("BYT", 1, "<b")  # int8
     UBYT = ("UBYT", 1, "<B")  # uint8
@@ -124,7 +126,7 @@ class DMLType(HumanReprMixin, SerdeMixin, Enum):
         self.struct_code = struct_code
 
     @classmethod
-    def from_str(cls, t_name: str) -> DMLType | None:  # sourcery skip: use-next
+    def from_str(cls, t_name_: str) -> DMLType | None:  # sourcery skip: use-next
         """
         from_str enum described by the given string or `None` if invalid
 
@@ -135,7 +137,7 @@ class DMLType(HumanReprMixin, SerdeMixin, Enum):
             DMLType | None: enum described by the given string or `None` if invalid
         """
         for enum in cls:
-            if enum.t_name == t_name:
+            if enum.t_name.upper() == t_name_.upper():
                 return enum
         return None
 
@@ -217,6 +219,8 @@ class BytestreamReader:
             size = -1
         b = self.stream.read(size)
         self.stream.seek(pos)
+        if self.stream.tell() != pos:
+            breakpoint()
         return b
 
     def __str_read(self, peek=False):
@@ -239,7 +243,7 @@ class BytestreamReader:
         str_len = self.__simple_read(DMLType.USHRT, peek=peek)
         bites = self.stream.read(str_len)
         try:
-            return bytes.decode("utf-16-le")
+            return bites.decode("utf-16-le")
         except Exception:  # pylint: disable=broad-except
             return bites
         finally:
@@ -293,8 +297,12 @@ class BytestreamReader:
     def get_buffer(self):
         return self.stream.getbuffer()
 
+    def peek_remaining(self) -> bytes:
+        return bytes(self.get_buffer())[self.buffer_position() :]
+
     def __str__(self):
-        return f"BytestreamReader(UINT8: {self.read(DMLType.UINT8, peek=True)}, UINT16: {self.read(DMLType.UINT16, peek=True)}, BYT: {hex(self.read(DMLType.BYT, peek=True))})"
+        return self.peek_remaining()
+        # return f"BytestreamReader(UINT8: {self.read(DMLType.UINT8, peek=True)}, UINT16: {self.read(DMLType.UINT16, peek=True)}, BYT: {hex(self.read(DMLType.BYT, peek=True))})"
 
     def __repr__(self) -> str:
         return self.__str__()

@@ -14,7 +14,7 @@ def pcap():
     """
 
 
-@click.command()
+@pcap.command(name="filter")
 @click.argument(
     "input_f",
     type=click.Path(
@@ -110,9 +110,6 @@ def filter_cmd(
 #     )
 
 #     filter_pcap(input_f, output_f, compress=zip, sanitize=sanitize)
-
-
-pcap.add_command(filter_cmd, name="filter")
 
 
 def register(group: click.Group):
