@@ -1,0 +1,49 @@
+<?xml version="1.0" ?>
+<FAKEMESSAGES1>
+  <_ProtocolInfo>
+    <RECORD>
+      <ServiceID TYPE="UBYT">1</ServiceID>
+      <ProtocolType TYPE="STR">FAKE1</ProtocolType>
+      <ProtocolVersion TYPE="INT">1</ProtocolVersion>
+      <ProtocolDescription TYPE="STR">FAKE MESSAGES 1</ProtocolDescription>
+    </RECORD>
+  </_ProtocolInfo>
+
+  <MSG_PROTO1_FAKE>
+    <RECORD>
+      <_MsgName TYPE="STR" NOXFER="TRUE">MSG_PROTO1_FAKE</_MsgName>
+      <_MsgDescription TYPE="STR" NOXFER="TRUE">I needed fake definitions</_MsgDescription>
+      <_MsgHandler TYPE="STR" NOXFER="TRUE">so i made these</_MsgHandler>
+
+      <!-- Standard types -->
+      <!-- <TestFieldBOOL TYPE="BOOL" /> -->
+      <TestField_00_INT8    TYPE="INT8"    />
+      <TestField_01_UINT8   TYPE="UINT8"   />
+      <TestField_02_INT16   TYPE="INT16"   />
+      <TestField_03_UINT16  TYPE="UINT16"  />
+      <TestField_04_INT32   TYPE="INT32"   />
+      <TestField_05_UINT32  TYPE="UINT32"  />
+      <TestField_06_FLOAT32 TYPE="FLOAT32" />
+      <TestField_07_UINT64  TYPE="UINT64"  />
+
+      <!-- DML specific types -->
+      <TestField_08_BYT TYPE="BYT" />
+      <TestField_09_UBYT TYPE="UBYT" />
+      <TestField_0A_SHRT TYPE="SHRT" />
+      <TestField_0B_USHRT TYPE="USHRT" />
+      <TestField_0C_INT TYPE="INT" />
+      <TestField_0D_UINT TYPE="UINT" />
+      <TestField_0E_FLT TYPE="FLT" />
+      <TestField_0F_DBL TYPE="DBL" />
+      <TestField_10_GID TYPE="GID" />
+      <!-- Special Handling -->
+      <!-- ASCII -->
+      <TestField_11_STR TYPE="STR" />
+      <!-- binary -->
+      <TestField_12_STR TYPE="STR" />
+      <!-- < ! - - DISABLED because it's literally never used and idk why it ever would be
+      <TestFieldWSTR TYPE="WSTR" /> - - > -->
+    </RECORD>
+  </MSG_PROTO1_FAKE>
+</FAKEMESSAGES1>
+
