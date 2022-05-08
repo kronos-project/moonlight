@@ -12,6 +12,7 @@ repos:
         - id: pylint
           name: pylint
           entry: poetry run pylint moonlight
+          require_serial: true
           language: system
           pass_filenames: true
           types: [python]
