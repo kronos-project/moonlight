@@ -64,7 +64,6 @@ mypy-extensions = ">=0.4.3"
 pathspec = ">=0.9.0"
 platformdirs = ">=2"
 tomli = {version = ">=1.1.0", markers = "python_version < \"3.11\""}
-typing-extensions = {version = ">=3.10.0.0", markers = "python_version < \"3.10\""}
 
 [package.extras]
 colorama = ["colorama (>=0.4.3)"]
@@ -553,7 +552,7 @@ python-versions = "*"
 name = "pyyaml"
 version = "6.0"
 description = "YAML parser and emitter for Python"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.6"
 
@@ -634,11 +633,11 @@ python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
 name = "tomli"
-version = "1.2.3"
+version = "2.0.1"
 description = "A lil' TOML parser"
 category = "dev"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.7"
 
 [[package]]
 name = "tornado"
@@ -658,14 +657,6 @@ python-versions = ">=3.7"
 
 [package.extras]
 test = ["pytest"]
-
-[[package]]
-name = "typing-extensions"
-version = "4.2.0"
-description = "Backported and Experimental Type Hints for Python 3.7+"
-category = "dev"
-optional = false
-python-versions = ">=3.7"
 
 [[package]]
 name = "virtualenv"
@@ -693,24 +684,10 @@ category = "dev"
 optional = false
 python-versions = "*"
 
-[[package]]
-name = "yamlloader"
-version = "1.1.0"
-description = "Ordered YAML loader and dumper for PyYAML."
-category = "main"
-optional = false
-python-versions = ">=3.6"
-
-[package.dependencies]
-pyyaml = "*"
-
-[package.extras]
-dev = ["pytest", "hypothesis"]
-
 [metadata]
 lock-version = "1.1"
-python-versions = ">= 3.9"
-content-hash = "45dcff802729801cadc7ad8ce8708254ddde3ea0a0fab2978e49d34ef942ed55"
+python-versions = ">=3.10,<4"
+content-hash = "a875eb8d009a50a8d375c4f2cae5183488724824130c84e5fa5d036f772c2555"
 
 [metadata.files]
 appnope = [
@@ -1127,8 +1104,8 @@ toml = [
     {file = "toml-0.10.2.tar.gz", hash = "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"},
 ]
 tomli = [
-    {file = "tomli-1.2.3-py3-none-any.whl", hash = "sha256:e3069e4be3ead9668e21cb9b074cd948f7b3113fd9c8bba083f48247aab8b11c"},
-    {file = "tomli-1.2.3.tar.gz", hash = "sha256:05b6166bff487dc068d322585c7ea4ef78deed501cc124060e0f238e89a9231f"},
+    {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},
+    {file = "tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"},
 ]
 tornado = [
     {file = "tornado-6.1-cp35-cp35m-macosx_10_9_x86_64.whl", hash = "sha256:d371e811d6b156d82aa5f9a4e08b58debf97c302a35714f6f45e35139c332e32"},
@@ -1177,10 +1154,6 @@ traitlets = [
     {file = "traitlets-5.1.1-py3-none-any.whl", hash = "sha256:2d313cc50a42cd6c277e7d7dc8d4d7fedd06a2c215f78766ae7b1a66277e0033"},
     {file = "traitlets-5.1.1.tar.gz", hash = "sha256:059f456c5a7c1c82b98c2e8c799f39c9b8128f6d0d46941ee118daace9eb70c7"},
 ]
-typing-extensions = [
-    {file = "typing_extensions-4.2.0-py3-none-any.whl", hash = "sha256:6657594ee297170d19f67d55c05852a874e7eb634f4f753dbd667855e07c1708"},
-    {file = "typing_extensions-4.2.0.tar.gz", hash = "sha256:f1c24655a0da0d1b67f07e17a5e6b2a105894e6824b92096378bb3668ef02376"},
-]
 virtualenv = [
     {file = "virtualenv-20.14.1-py2.py3-none-any.whl", hash = "sha256:e617f16e25b42eb4f6e74096b9c9e37713cf10bf30168fb4a739f3fa8f898a3a"},
     {file = "virtualenv-20.14.1.tar.gz", hash = "sha256:ef589a79795589aada0c1c5b319486797c03b67ac3984c48c669c0e4f50df3a5"},
@@ -1188,8 +1161,4 @@ virtualenv = [
 wcwidth = [
     {file = "wcwidth-0.2.5-py2.py3-none-any.whl", hash = "sha256:beb4802a9cebb9144e99086eff703a642a13d6a0052920003a230f3294bbe784"},
     {file = "wcwidth-0.2.5.tar.gz", hash = "sha256:c4d647b99872929fdb7bdcaa4fbe7f01413ed3d98077df798530e5b04f116c83"},
-]
-yamlloader = [
-    {file = "yamlloader-1.1.0-py3-none-any.whl", hash = "sha256:1dde3127e570ad60583711b8963ca3e06fe042e5272d17bea80f12a5366198dd"},
-    {file = "yamlloader-1.1.0.tar.gz", hash = "sha256:8a297c7a197683ba02e5e2b882ffd6c6180d01bdefb534b69cd3962df020bfe6"},
 ]

@@ -8,21 +8,18 @@ readme = "README.md"
 repository = "https://github.com/kronos-project/moonlight"
 include = [
     "moonlight",
-    "res",
     "test",
     "poetry.lock",
     "pyproject.toml"
 ]
 
 [tool.poetry.dependencies]
-python = ">= 3.9"
+python = ">=3.10,<4"
 # https://github.com/secdev/scapy/issues/3246 fix isn't on pypi
 scapy = {git = "https://github.com/secdev/scapy.git", rev = "master"}
 printrospector = {git = "https://gitlab.com/vale_/printrospector", rev = "main"}
 click = "^8.0.4"
 colorama = "^0.4.4"
-PyYAML = "^6.0"
-yamlloader = "^1.1.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
@@ -42,5 +39,4 @@ build-backend = "poetry.core.masonry.api"
 [tool.pylint.'MESSAGES CONTROL']
 disable = [
     "line-too-long", # We'll let black handle this. There are cases when long lines are okay.
-    "missing-docstring" # Once stable I'll be more worried about this
 ]

@@ -1,14 +1,13 @@
-from email import message
-from pathlib import Path
+"""
+Decoding still packed network traffic
+"""
+import base64
+import json
 import logging
 import sys
-import base64
-from typing import OrderedDict
-import json
+from pathlib import Path
 
 import click
-import yaml
-import yamlloader
 
 from moonlight.net import PacketReader
 from moonlight.util import SerdeJSONEncoder, bytes_to_pretty_str
@@ -26,14 +25,6 @@ def decode():
     Decoding individual messages and wireshark PCAP files into a human-readable
     format.
     """
-
-
-def dump_anydict_as_map(anydict):
-    yaml.add_representer(anydict, _represent_dictorder)
-
-
-def _represent_dictorder(self, data):
-    return self.represent_mapping("tag:yaml.org,2002:map", data.items())
 
 
 @decode.command()
@@ -71,11 +62,9 @@ def pcap(
     """
 
     # lazy load since scapy is kinda heavy
-    from moonlight.net.scapy import (  # pylint: disable=import-outside-toplevel
+    from moonlight.net.scapy import (
         PcapReader,
-    )
-
-    dump_anydict_as_map(OrderedDict)
+    )  # pylint: disable=import-outside-toplevel
 
     from scapy.layers.inet import TCP
 
@@ -125,7 +114,7 @@ def pcap(
 )
 @click.option(
     "-i",
-    "--input",
+    "--input_",
     default=None,
     help="Instead of reading from stdin, use this value as the input",
 )
@@ -144,27 +133,11 @@ def pcap(
     type=click.Choice(["base64", "raw", "hex"]),
     help="Format of the input packet data",
 )
-@click.option(
-    "--out-fmt",
-    default="yaml",
-    show_default=True,
-    type=click.Choice(["yaml"]),
-    help="Format of the output human representation",
-)
-@click.option(
-    "-c",
-    "--compact",
-    is_flag=True,
-    default=False,
-    help="Reduces the amount of information in output",
-)
 def packet(  # pylint: disable=too-many-arguments
     message_def_dir: Path,
-    input: str,
+    input_: str,
     typedefs: Path,
     in_fmt: str,
-    out_fmt: str,
-    compact: bool,
 ):
     """
     Decodes packet from stdin
@@ -175,13 +148,13 @@ def packet(  # pylint: disable=too-many-arguments
     MSG_DEF_DIR: Directory holding KI DML definitions
     """
 
-    if input is None:
-        input = sys.stdin.buffer.read()
+    if input_ is None:
+        input_ = sys.stdin.buffer.read()
 
     if in_fmt == "base64":
-        input = base64.b64decode(input)
+        input_ = base64.b64decode(input)
     elif in_fmt == "hex":
-        input = bytes.fromhex(input.replace(" ", "").replace("\n", ""))
+        input_ = bytes.fromhex(input.replace(" ", "").replace("\n", ""))
 
     rdr = PacketReader(
         typedef_path=typedefs,
@@ -190,16 +163,20 @@ def packet(  # pylint: disable=too-many-arguments
     msg = rdr.decode_ki_packet(input)
     click.echo()
     if msg is None:
-        yaml.dump({"error": "failed to decode packet"}, sys.stdout)
-    else:
-        yaml.dump(
-            msg.as_human_dict(compact=compact),
-            sys.stdout,
-            default_flow_style=False,
-            sort_keys=False,
-            Dumper=yamlloader.ordereddict.CDumper,
+        click.echo(
+            json.dumps(
+                obj={"error": "failed to decode packet"}, cls=SerdeJSONEncoder, indent=2
+            )
         )
+    else:
+        click.echo(json.dumps(obj=msg, cls=SerdeJSONEncoder, indent=2))
 
 
 def register(group: click.Group):
+    """
+    register adds decode commands to the given click group
+
+    Args:
+        group (click.Group): group to add commands to
+    """
     group.add_command(decode)
