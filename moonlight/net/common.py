@@ -2,14 +2,16 @@
     Shared stuff between the KI network protocol
 """
 
+
 from __future__ import annotations
+import contextlib
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
 import struct
 from io import BytesIO
-from typing import Any, Tuple
+from typing import Any
 
 from moonlight.util import HumanReprMixin, SerdeMixin, bytes_to_pretty_str
 
@@ -18,6 +20,11 @@ DML_HEADER_LEN = 2
 
 
 class MessageSender(HumanReprMixin, SerdeMixin, Enum):
+    """
+    MessageSender represents one of the various creators of a message within
+    Wizard101 and/or the kronos toolkit.
+    """
+
     CLIENT = 1
     SERVER = 2
     FLAGTOOL = 3
@@ -34,6 +41,17 @@ class MessageSender(HumanReprMixin, SerdeMixin, Enum):
 
     @classmethod
     def from_capture_port(cls, port: int) -> MessageSender | None:
+        """
+        from_capture_port gets the sender enum based on the netpack capture
+        synthetic port. These numbers are based off the storing netpack
+        client's implementation (moonlight being libnetpack)
+
+        Args:
+            port (int): port number of the packet sender
+
+        Returns:
+            MessageSender | None: representing enum if exists, otherwise `None`
+        """
         for const in cls:
             if const.netpack_port == port:
                 return const
@@ -42,6 +60,11 @@ class MessageSender(HumanReprMixin, SerdeMixin, Enum):
 
 @dataclass(init=True, repr=True, kw_only=True)
 class Message(HumanReprMixin, SerdeMixin):
+    """
+    Message is the base type of all message implementations in moonlight.
+    Extend it to create new types of messages.
+    """
+
     original_bytes: bytes
     ki_header: KIHeader = None
     sender: MessageSender | None = None
@@ -51,6 +74,9 @@ class Message(HumanReprMixin, SerdeMixin):
     HUMAN_REPR_ORDER_APPEND = ("ki_header", "original_bytes")
 
     def as_serde_dict(self) -> dict[str, Any] | Any:
+        """
+        See `moonlight.util.SerdeMixin#as_serde_dict`
+        """
         # Override as we are doing more than the mixin is intended for
         return {
             "sender": None if self.sender is None else self.sender.as_serde_dict(),
@@ -59,7 +85,7 @@ class Message(HumanReprMixin, SerdeMixin):
         }
 
 
-class DMLType(HumanReprMixin, SerdeMixin, Enum):
+class DMLType(SerdeMixin, Enum):
     """Bit types used by the KI network protocol.
 
     Args:
@@ -110,6 +136,7 @@ class DMLType(HumanReprMixin, SerdeMixin, Enum):
         "<H",
     )
     # uint16 length definition followed by utf8 encoding a PropertyObject
+    # TODO: Deprecate and remove
     PO_STR = (
         "PO_STR",
         2,
@@ -121,6 +148,16 @@ class DMLType(HumanReprMixin, SerdeMixin, Enum):
     PO_WSTR = ("PO_WSTR", 2, "<H")
 
     def __init__(self, t_name, length, struct_code):
+        """
+        __init__
+
+        Args:
+            t_name (str): name of the encoding type
+            length (int): length of the encoded information.
+               For some types, this may instead represent the size of the
+               length prefix. See implementation in `BytestreamReader`
+            struct_code (str): `struct.unpack`'s structure code
+        """
         self.t_name = t_name
         self.length = length
         self.struct_code = struct_code
@@ -141,10 +178,10 @@ class DMLType(HumanReprMixin, SerdeMixin, Enum):
                 return enum
         return None
 
-    def as_human_dict(self, compact=True):
-        return repr(self)
-
     def as_serde_dict(self) -> dict[str, Any] | Any:
+        """
+        See `SerdeMixin#as_serde_dict`
+        """
         return self.t_name
 
     def __str__(self):
@@ -213,25 +250,20 @@ class BytestreamReader:
 
     # FIXME: Hack until https://github.com/python/cpython/pull/30808/files
     # is merged
-    def __peek_stream(self, size=-1):
+    def __peek_stream(self, size=-1) -> bytes:
         pos = self.stream.tell()
         if size == 0:
             size = -1
-        b = self.stream.read(size)
+        bites = self.stream.read(size)
         self.stream.seek(pos)
-        if self.stream.tell() != pos:
-            breakpoint()
-        return b
+        return bites
 
-    def __str_read(self, peek=False):
+    def __str_read(self, peek=False) -> str | bytes:
         buffer_pos = self.buffer_position()
         str_len = self.__simple_read(DMLType.USHRT, peek=peek)
         bites = self.stream.read(str_len)
-        try:
+        with contextlib.suppress(Exception):
             bites = bites.decode("ascii")
-        except Exception:  # pylint: disable=broad-except
-            pass
-
         if peek:
             self.stream.seek(buffer_pos)
 
@@ -259,7 +291,7 @@ class BytestreamReader:
 
         self.stream.read(length)
 
-    def read(self, dml_type: DMLType, peek: bool = False):
+    def read(self, dml_type: DMLType, peek: bool = False) -> Any:
         """read reads a `DMLType` from the stream
 
         Args:
@@ -267,7 +299,7 @@ class BytestreamReader:
             peek (bool, optional): True if reading does not advance the reading head. Defaults to False.
 
         Returns:
-            _type_: _description_
+            Any: decoded data based on the provided DMLType
         """
 
         if dml_type is DMLType.STR:
@@ -276,28 +308,53 @@ class BytestreamReader:
             return self.__wstr_read(peek)
         return self.__simple_read(dml_type, peek)
 
-    def peek(self, enc_type: DMLType):
+    def peek(self, enc_type: DMLType) -> Any:
         """peek reads a `DMLType` from the stream, not advancing the head.
 
         Args:
             enc_type (DMLType): Expected `DMLType` of the field
 
         Returns:
-            _type_: _description_
+            Any: decoded data based on the provided DMLType
         """
 
         return self.read(enc_type, peek=True)
 
-    def bytes_remaining(self):
+    def bytes_remaining(self) -> int:
+        """
+        bytes_remaining gets the number of bytes remaining in the buffer
+
+        Returns:
+            int: num of bytes remaining in buffer
+        """
         return self.stream.getbuffer().nbytes - self.stream.tell()
 
-    def buffer_position(self):
+    def buffer_position(self) -> int:
+        """
+        buffer_position gets the reading head's index in the buffer
+
+        Returns:
+            int: current index of reading head
+        """
         return self.stream.tell()
 
-    def get_buffer(self):
+    def get_buffer(self) -> memoryview:
+        """
+        get_buffer gets the underlying buffer
+
+        Returns:
+            memoryview: underlying buffer
+        """
         return self.stream.getbuffer()
 
     def peek_remaining(self) -> bytes:
+        """
+        peek_remaining gets the remaining bytes in the buffer without advancing
+        the reading head
+
+        Returns:
+            bytes: bytes remaining in the buffer
+        """
         return bytes(self.get_buffer())[self.buffer_position() :]
 
     def __str__(self):
@@ -308,30 +365,49 @@ class BytestreamReader:
         return self.__str__()
 
 
-class KIHeader(HumanReprMixin, SerdeMixin):
-    """Dataclass holding the KI packet header fields.
+@dataclass(repr=True, kw_only=True)
+class KIHeader(SerdeMixin):
+    """Dataclass holding the KI packet header fields."""
 
-    Note: Passing in a BytestreamReader instead of bytes will change the current
-    position of the reader.
-    """
+    food: bytes
+    content_len: int
+    content_is_control: int
+    control_opcode: int
+    mystery_bytes: bytes
 
-    def __init__(self, buffer: BytestreamReader | bytes) -> None:
-        if isinstance(buffer, bytes):
-            buffer = BytestreamReader(buffer)
+    # def __init__(self, buffer: BytestreamReader | bytes) -> None:
+
+    @classmethod
+    def from_bytes(cls, bites: bytes | BytestreamReader) -> KIHeader:
+        """
+        from_bytes creates a new header object from the provided bytes,
+        assuming they are valid
+
+        Args:
+            bites (bytes | BytestreamReader): packed Kingsisle TCP frame header
+
+        Raises:
+            ValueError: the provided bytes do not represent a KI tcp frame header
+
+        Returns:
+            KIHeader: unpacked KI network tcp header
+        """
+
+        if isinstance(bites, bytes):
+            bites = BytestreamReader(bites)
         # validate content
-        food = buffer.read(DMLType.UINT16)
-        self.content_len = buffer.read(DMLType.UINT16)
-        self.content_is_control = buffer.read(DMLType.UINT8)
-        self.control_opcode = buffer.read(DMLType.UINT8)
-        self.mystery_bytes = buffer.read(DMLType.UINT16)
-        if food != 0xF00D:
+        food = bites.read_raw(2)
+        content_len = bites.read(DMLType.UINT16)
+        content_is_control = bites.read(DMLType.UINT8)
+        control_opcode = bites.read(DMLType.UINT8)
+        mystery_bytes = bites.read(DMLType.UINT16)
+        if food != b"\x0D\xF0":
             raise ValueError("Not a KI game protocol packet. F00D missing.")
 
-    def to_human_dict(self):
-        return repr(self)
-
-    def as_human_dict(self, compact=True) -> dict[str, Any] | str:
-        return repr(self)
-
-    def __repr__(self) -> str:
-        return f"<PacketHeader content_len={self.content_len} content_is_control={hex(self.content_is_control)} control_opcode={hex(self.control_opcode)}>"
+        return cls(
+            food=food,
+            content_len=content_len,
+            content_is_control=content_is_control,
+            control_opcode=control_opcode,
+            mystery_bytes=mystery_bytes,
+        )

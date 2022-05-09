@@ -1,3 +1,6 @@
+"""
+CLI entrypoint
+"""
 import logging
 import click
 
@@ -37,6 +40,10 @@ LOGGER_LEVEL_MAP: dict[str, int] = {
     help="Sets the logging level. Overrides any other specified verbosity flag's level including --silent (not formatting). Silent disables logging.",
 )
 def cli_cmd(verbose, silent: bool, log_level: str):
+    """
+    Decodes Wizard101 traffic from unencrypted wireshark packet captures
+    """
+
     logging.addLevelName(level=LOGGER_LEVEL_MAP["SILENT"], levelName="SILENT")
 
     log_level_int = STANDARD_LOG_LVL

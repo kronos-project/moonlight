@@ -62,7 +62,7 @@ class PacketReader:
         packets: list[ControlMessage | DMLMessage] = []
 
         try:
-            header = KIHeader(reader)
+            header = KIHeader.from_bytes(reader)
             # 4 bytes remain in what we consider the header but KI doesn't
             if header.content_len < reader.bytes_remaining() + 4:
                 logger.warning(

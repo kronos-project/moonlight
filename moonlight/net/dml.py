@@ -641,7 +641,7 @@ class DMLProtocolRegistry:
     ) -> DMLMessage:
         original_bites = bites
         bites = BytestreamReader(bites)
-        ki_header = KIHeader(bites)
+        ki_header = KIHeader.from_bytes(bites)
 
         protocol_id = bites.read(DMLType.UBYT)
         if protocol_id not in self.protocol_map:

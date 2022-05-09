@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from json import JSONEncoder
 from types import LambdaType
 from typing import Any, Tuple
@@ -45,8 +47,9 @@ class SerdeMixin:
         return keypairs
 
     @classmethod
-    def from_serde_dict(cls, data: Any, ctx: dict[str, Any] = {}) -> SerdeMixin:
-        pass
+    def from_serde_dict(cls, data: Any, ctx: dict[str, Any] = None) -> SerdeMixin:
+        if ctx is None:
+            ctx = {}
 
     # @classmethod
     # def from_serde_dict(cls):

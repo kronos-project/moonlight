@@ -6,12 +6,11 @@ from datetime import datetime
 import logging
 import os
 from pathlib import Path
-from telnetlib import IP
 import traceback
 from os import PathLike, listdir
-from os.path import isfile, join
+import os.path
+from os.path import isfile
 
-from moonlight.net.common import MessageSender, Message
 
 # scapy on import prints warnings about system interfaces
 # pylint: disable=wrong-import-position disable=wrong-import-order
@@ -28,8 +27,10 @@ logging.getLogger("scapy.runtime").setLevel(logging.WARNING)
 # pylint: enable=wrong-import-position
 
 from moonlight.net import (
-    PacketReader,
     KIHeader,
+    Message,
+    MessageSender,
+    PacketReader,
     SessionAcceptMessage,
     SessionOfferMessage,
 )
@@ -39,19 +40,57 @@ logger = logging.getLogger(__name__)
 SENSITIVE_MSG_OPCODES = [SessionAcceptMessage.OPCODE, SessionOfferMessage.OPCODE]
 
 
-def is_interesting_packet_naive(packet: Packet):
+def is_interesting_packet_naive(packet: Packet) -> bool:
+    """
+    is_interesting_packet_naive naively determines if a packet is one
+        moonlight is capable of decoding
+
+    Args:
+        packet (Packet): packet
+
+    Returns:
+        bool: `True` if the packet is interesting
+    """
     return TCP in packet.layers() and isinstance(packet[TCP].payload, Raw)
 
 
-def is_ki_packet_naive(packet: Packet):
+def is_ki_packet_naive(packet: Packet) -> bool:
+    """
+    is_ki_packet_naive naively determines if a packet is from Wizard101. Assumes
+        that the packet has been checked with `is_interesting_packet_naive`
+        first
+
+    Args:
+        packet (Packet): packet checked with `is_interesting_packet_naive`
+
+    Returns:
+        bool: `True` if the packet is from KI
+    """
     return bytes(packet[TCP].payload).startswith(b"\x0D\xF0")
 
 
-def is_flagtool_packet_naive(packet: Packet):
+def is_flagtool_packet_naive(packet: Packet) -> bool:
+    """
+    is_flagtool_packet_naive naively determines if a packet is from the
+        netpack flagtool. Assumes that the packet has been checked with
+        `is_interesting_packet_naive` first.
+
+    Args:
+        packet (Packet): packet checked with `is_interesting_packet_naive`
+
+    Returns:
+        bool: `True` if the packet is from flagtool
+    """
     return packet[TCP].dport == MessageSender.FLAGTOOL.value
 
 
 class PcapReader(PacketReader):
+    """
+    PcapReader is a wrapper around `scapy.utils.PcapReader` for traffic
+        moonlight is capable of decoding. Packets that are not determined
+        to be from a supported system are ignored.
+    """
+
     def __init__(
         self,
         pcap_path: PathLike,
@@ -77,7 +116,15 @@ class PcapReader(PacketReader):
     def __iter__(self):
         return self
 
-    def next_interesting_raw(self):
+    def next_interesting_raw(self) -> Packet | None:
+        """
+        next_interesting_raw gets the next packet of interest from the current
+            capture and returns it as a standard `scapy.packet.Packet`
+
+        Returns:
+            scapy.packet.Packet | None: Next interesting packet or None if at
+                the end of the capture
+        """
         while True:
             packet = self.pcap_reader.next()
             if not (
@@ -88,20 +135,27 @@ class PcapReader(PacketReader):
             self.last_decoded = None
             self.last_decoded_raw = packet
             return packet
+        return None
 
     def __next__(self) -> Message:
         pkt = self.next_interesting_raw()
+
         if is_flagtool_packet_naive(pkt):
             msg = self.decode_flagtool_packet(bytes(pkt[TCP].payload))
         else:  # this is an already checked assumption in next_interesting_raw
             msg = self.decode_ki_packet(bytes(pkt[TCP].payload))
+
+        # populate capture-only data since, well, this is a capture
         if msg is not None:
             msg.sender = MessageSender.from_capture_port(pkt[TCP].dport)
             msg.timestamp = datetime.fromtimestamp(float(pkt.time))
         self.last_decoded = msg
         return msg
 
-    def close(self):
+    def close(self) -> None:
+        """
+        close closes the wrapped pcap reader
+        """
         self.pcap_reader.close()
 
     def __enter__(self):
@@ -112,22 +166,28 @@ class PcapReader(PacketReader):
 
 
 class LiveSniffer:
+    """
+    Live traffic sniffer for Wizard101. Relies on the connection being unencrypted
+    """
+
     def __init__(
         self,
         dml_def_folder: PathLike = os.path.join(
             os.path.dirname(__file__), "..", "res", "dml", "messages"
         ),
-        target_ip: str = "127.0.0.1",
+        filter_: str = "dst host 127.0.0.1 or src host 127.0.0.1",
     ):
         self.stream = None
-        self.target_ip = target_ip
+        self.filter_ = filter_
         protocols = [
-            f for f in listdir(dml_def_folder) if isfile(join(dml_def_folder, f))
+            f
+            for f in listdir(dml_def_folder)
+            if isfile(os.path.join(dml_def_folder, f))
         ]
-        protocols = map(lambda x: join(dml_def_folder, x), protocols)
+        protocols = map(lambda x: os.path.join(dml_def_folder, x), protocols)
         self.decoder = PacketReader(msg_def_folder=dml_def_folder)
 
-    def scapy_callback(self, pkt: Packet):
+    def _scapy_callback(self, pkt: Packet):
         if not isinstance(pkt[TCP].payload, Raw):
             return
         try:
@@ -141,22 +201,50 @@ class LiveSniffer:
             logger.error("Cannot parse packet: %s", traceback.print_exc())
 
     def open_livestream(self):
+        """
+        open_livestream starts sniffing using the set filter, waiting for either
+            a SIGINT signal or for `close_livestream` to be called
+        """
         self.stream = AsyncSniffer(
-            filter=f"dst host {self.target_ip} or src host {self.target_ip}",
+            filter=self.filter_,
             session=TCPSession,
-            prn=self.scapy_callback,
+            prn=self._scapy_callback,
         )
         logger.info("Starting sniffer")
         self.stream.start()
-        logger.info("Waiting for end signal")
+        logger.info("Waiting for end signal (SIGINT)")
         self.stream.join()
 
-    def close_livestream(self):
-        self.stream.stop()
+    def close_livestream(self, join=True):
+        """
+        close_livestream interrupts an ongoing sniffing session via
+            `open_livestream`, releasing the lock and causing the method
+            to exit.
+
+        Args:
+            join (bool, optional): Wait for the livestream to
+                exit before returning. Defaults to True.
+        """
+        self.stream.stop(join=join)
 
 
 def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
-    header = KIHeader(payload)
+    """
+    sanitize_signed_msg takes messages with sensitive info (session offer/accept)
+        and sets their sensitive content to 0s.
+
+    Args:
+        pkt_reader (PacketReader): reader to use when decoding the message
+            contents
+        payload (bytes): message to sanitize. Full frame is expected.
+
+    Raises:
+        ValueError: provided payload could not be decoded to a message
+
+    Returns:
+        bytes: payload sanitized of any sensitive information
+    """
+    header = KIHeader.from_bytes(payload)
     if (
         header.content_is_control
         and header.control_opcode == SessionOfferMessage.OPCODE
@@ -208,8 +296,8 @@ def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
                 + old_payload[28 + decoded.signed_message_len :]
             )
             logger.debug(
-                "Sanitized session accept packet",
-                extra={"old": old_payload, "new": new_payload},
+                "Sanitized session accept packet. Was '{old_payload}', "
+                "now '{new_payload}'"
             )
             return new_payload
         except ValueError as exc:
@@ -221,7 +309,24 @@ def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
 
 def filter_pcap(
     p_in: Path, p_out: Path, compress: bool = False, sanitize: bool = False
-):
+) -> None:
+    """
+    filter_pcap removes traffic that moonlight cannot parse from a pcap file.
+        Optionally, it can also remove sensitive data from Wizard101 messages,
+        mainly session information.
+
+    Args:
+        p_in (Path): pcap file to filter
+        p_out (Path): path to write new, filtered pcap to
+        compress (bool, optional): compresses the output pcap using the
+            gz algorithm. Defaults to False.
+        sanitize (bool, optional): Remove sensitive information from packets
+            while filtering. Defaults to False.
+
+    Raises:
+        Exception: when underlying pcap message cannot be parsed or
+            something should have been sanitized but failed
+    """
     reader = PcapReader(str(p_in.absolute().resolve()), msg_def_folder=None)
     writer = Scapy_PcapWriter(str(p_out.absolute().resolve()), gz=compress)
     logger.info("Filtering pcap to ki traffic only: in=%s, out=%s", p_in, p_out)
@@ -236,7 +341,7 @@ def filter_pcap(
             if (
                 sanitize
                 and is_ki_packet_naive(packet)
-                and KIHeader(bytes(packet[TCP].payload)).content_is_control
+                and KIHeader.from_bytes(bytes(packet[TCP].payload)).content_is_control
             ):
                 try:
                     dirty_data = bytes(packet[TCP].payload)
@@ -258,10 +363,11 @@ def filter_pcap(
         pass
     except KeyboardInterrupt:
         logger.warning("Cutting filtering short and finalizing")
-    except Exception:
+    except Exception as err:  # pylint: disable=broad-except
         logger.critical(
             "Unrecoverable error occurred while filtering pcap file", exc_info=True
         )
+        return err
     finally:
         reader.close()
         writer.close()

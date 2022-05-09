@@ -63,9 +63,9 @@ def filter_cmd(
     """
 
     # lazy load since scapy is kinda heavy
-    from moonlight.net.scapy import (
+    from moonlight.net.scapy import (  # pylint: disable=import-outside-toplevel
         filter_pcap,
-    )  # pylint: disable=import-outside-toplevel
+    )
 
     filter_pcap(input_f, output_f, compress=zip, sanitize=sanitize)
 

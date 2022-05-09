@@ -2,6 +2,8 @@
 Object property parsing things
 """
 
+
+import contextlib
 import json
 from copy import copy
 import logging
@@ -13,6 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 def build_typecache(path: PathLike) -> TypeCache:
+    """
+    build_typecache loads a typedef file into a printrospector TypeCache
+
+    Args:
+        path (PathLike): path to typedef file
+
+    Returns:
+        TypeCache: _description_
+    """
     with open(path, encoding="utf-8") as file:
         return TypeCache(json.load(file))
 
@@ -115,7 +126,7 @@ class ObjectPropertyDecoder:
         """
 
         try:
-            self.__verify_deserializer()
+            self._verify_deserializer()
         except ValueError:
             return False
         return True
@@ -132,7 +143,7 @@ class ObjectPropertyDecoder:
             DynamicObject | None: deserialized property object or None if failed
         """
 
-        self.__verify_deserializer()
+        self._verify_deserializer()
 
         return self.serializer.deserialize(bites, property_mask=self.property_mask)
 
@@ -149,27 +160,25 @@ class ObjectPropertyDecoder:
             DynamicObject | None: deserialized property object if successful, otherwise None
         """
 
-        self.__verify_typecache()
+        self._verify_typecache()
 
         serializer_clone = copy(self.serializer)
         for flags in range(pow(2, 5)):
             serializer_clone.serializer_flags = flags
-            try:
+            with contextlib.suppress(Exception):
                 obj = serializer_clone.deserialize(bites, self.property_mask)
                 if obj and len(obj.items()) > 0:
                     return obj
-            except:  # pylint: disable=bare-except
-                pass
         return None
 
-    def __verify_deserializer(self):
-        self.__verify_deserializer_params()
-        self.__verify_typecache()
+    def _verify_deserializer(self):
+        self._verify_deserializer_params()
+        self._verify_typecache()
 
-    def __verify_deserializer_params(self):
+    def _verify_deserializer_params(self):
         if not self.params_are_complete():
             raise ValueError("Cannot deserialize without serde settings")
 
-    def __verify_typecache(self):
+    def _verify_typecache(self):
         if not self.typecache:
             raise ValueError("Cannot deserialize until a typedef is loaded")
