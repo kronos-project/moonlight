@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from os import PathLike
 from typing import Any, Dict, List, Tuple, Type
 
+from moonlight.util import HumanReprMixin, SerdeMixin, bytes_to_pretty_str
 from printrospector.object import DynamicObject
 from printrospector.type_cache import TypeCache
 
@@ -19,12 +20,10 @@ from .common import (
     BytestreamReader,
     DMLType,
     HumanReprMixin,
-    Message,
     KIHeader,
+    Message,
 )
-
 from .object_property import ObjectPropertyDecoder, build_typecache
-from moonlight.util import HumanReprMixin, SerdeMixin, bytes_to_pretty_str
 
 SERVICE_ID_SIZE = 1
 MESSAGE_ID_SIZE = 1
@@ -33,6 +32,16 @@ logger = logging.getLogger(__name__)
 
 
 def field_to_serde_keyval(field: "Field") -> Tuple:
+    """
+    field_to_serde_keyval takes a field and translates it to a serde key-value
+    pair
+
+    Args:
+        field (Field): field
+
+    Returns:
+        Tuple: 2-tuple, first being the key, second being the value
+    """
     if isinstance(field.value, bytes):
         f_format = "STR:hex"
         f_value = bytes_to_pretty_str(field.value)
@@ -63,6 +72,7 @@ class FieldDef(HumanReprMixin, SerdeMixin):
 
     # FIXME reduce number of fields. It's okay for now since this isn't
     # part of the public api.
+    # FIXME fix name fromm po to op
     def __init__(  # pylint: disable=too-many-arguments
         self,
         name: str,
@@ -168,22 +178,6 @@ class FieldDef(HumanReprMixin, SerdeMixin):
             noxfer=(node.attrib.get("NOXFER") == "TRUE"),
         )
 
-    def to_human_dict(self, compact=False) -> dict[str, Any] | str:
-        output = {
-            "name": self.name,
-            "dml_type": self.dml_type.t_name,
-        }
-        if not compact:
-            output["noxfer"] = self.noxfer
-        if compact or not self.po_decoder or not self.po_decoder.params_are_complete():
-            return output
-
-        output["po_flags"] = self.po_decoder.flags
-        output["po_exhaustive"] = self.po_decoder.exhaustive
-        output["po_property_mask"] = self.po_decoder.property_mask
-
-        return output
-
     def __repr__(self) -> str:
         return f"<FieldDef '{self.name}({self.dml_type})'>"
 
@@ -242,6 +236,7 @@ class Field(HumanReprMixin, SerdeMixin):
 
         return self.definition.decode_represented_property_object(field=self)
 
+    # TODO: read only property
     def name(self):
         return self.definition.name
 
@@ -251,30 +246,47 @@ class Field(HumanReprMixin, SerdeMixin):
     def noxfer(self):
         return self.definition.noxfer
 
-    def parsed_value(self):
+    # TODO: getter naming conventions
+    def parsed_value(self) -> Any:
+        """
+        parsed_value gets the parsed value of field. This is intended for
+            conditionally decoding a objectproperty if that's what the field
+            represents without needing to check first
+
+        Returns:
+            Any: objectproperty or "primitive" value
+        """
         if self.is_property_object():
             return self.as_property_object()
-        else:
-            return self.value
+        return self.value
 
     def parsed_type(self) -> Type | DMLType:
+        """
+        parsed_type returns the datatype without decoding an objectproperty
+            if it is one. Good for checking the datatype without
+            incurring a decoding cost.
+
+        Returns:
+            Type | DMLType: DynamicObject class or a DML type
+        """
         if self.is_property_object():
             return DynamicObject
         return self.dml_type()
 
-    def to_human_dict(self) -> dict:
-        return {
-            "value": self.as_property_object()
-            if self.is_property_object()
-            else self.value,
-            "definition": self.definition.to_human_dict(),
-        }
+    # TODO: dead human repr
+    # def to_human_dict(self) -> dict:
+    #     return {
+    #         "value": self.as_property_object()
+    #         if self.is_property_object()
+    #         else self.value,
+    #         "definition": self.definition.to_human_dict(),
+    #     }
 
-    def as_human_dict(self, compact=True) -> dict[str, Any] | str:
-        human_dict = super().as_human_dict(compact)
-        if self.is_property_object():
-            human_dict["value"] = self.as_property_object()
-        return human_dict
+    # def as_human_dict(self, compact=True) -> dict[str, Any] | str:
+    #     human_dict = super().as_human_dict(compact)
+    #     if self.is_property_object():
+    #         human_dict["value"] = self.as_property_object()
+    #     return human_dict
 
     def __str__(self) -> str:
         if self.is_property_object():
@@ -288,6 +300,13 @@ class Field(HumanReprMixin, SerdeMixin):
 # FIXME: grab protocol stuff from definition
 @dataclass(init=True, repr=True, kw_only=True)
 class DMLMessage(Message):
+    """
+    DMLMessage is a KI message type dynamically defined in the game's
+    root.wad file using message definition xml files. `DMLMessage` is
+    a container holding the data for a singular sent message and a reference
+    to the overall definition of the specific message type.
+    """
+
     HUMAN_REPR_IGNORE = "definition"
     HUMAN_REPR_SYNTHETIC = {
         "protocol_id": lambda x: x.protocol().id,
@@ -317,28 +336,73 @@ class DMLMessage(Message):
     original_bytes: bytes = None
     order_id: int = None
 
-    def name(self):
+    # TODO: make properties
+    def name(self) -> str:
+        """
+        name is the name of this message's type
+
+        Returns:
+            str: mesage type name
+        """
         return self.definition.name
 
-    def desc(self):
+    def desc(self) -> str:
+        """
+        desc is the description of this message's type
+
+        Returns:
+            str: message type description
+        """
         return self.definition.desc
 
-    def protocol(self):
+    def protocol(self) -> "DMLProtocol":
+        """
+        protocol returns a reference to the overall protocol containing this
+        message type
+
+        Returns:
+            DMLProtocol: message type's parent protocol
+        """
         return self.definition.protocol
 
-    def get_val(self, field_name):
+    def get_val(self, field_name: str) -> Any:
+        """
+        get_val returns the value stored in a given field name
+
+        Args:
+            field_name (str): name of the field's value to access
+
+        Raises:
+            AttributeError: provided field name does not exist
+
+        Returns:
+            Any: field's value
+        """
         for field in self.fields:
             if field.name == field_name:
                 return field.value
         raise AttributeError
 
-    def get_field_def(self, field_name):
+    def get_field_def(self, field_name: str) -> FieldDef:
+        """
+        get_field_def returns a reference to the given field's defintion
+
+        Args:
+            field_name (str): name of the field's definition to fetch
+
+        Raises:
+            AttributeError: provided field name does not exist
+
+        Returns:
+            FieldDef: reference to the given field's definition
+        """
         for field in self.fields:
             if field.name == field_name:
                 return field
         raise AttributeError
 
     def as_serde_dict(self) -> dict[str, Any] | Any:
+        """See `SerdeMixin#as_serde_dict`"""
         return {
             **super().as_serde_dict(),
             "data": {
@@ -426,7 +490,7 @@ class DMLMessageDef(HumanReprMixin):
             self.fields.append(FieldDef(**field_map))
 
     def get_field(self, name: str) -> Field | None:  # sourcery skip: use-next
-        """Finds and returns the field matching the given name
+        """Finds and returns the field container matching the given name
 
         Args:
             name (str): name of the field to retreive
@@ -439,7 +503,17 @@ class DMLMessageDef(HumanReprMixin):
                 return field.copy()
         return None
 
-    def reload_protocol_typedefs(self, typecache, typedef_path):
+    def reload_protocol_typedefs(self, typecache: TypeCache, typedef_path: PathLike):
+        """
+        reload_protocol_typedefs takes a new typedef file and informs all
+        fields of that new typedef
+
+        Args:
+            typecache (TypeCache): printrospector TypeCache object
+            typedef_path (PathLike): path to the used typedef file. This is largely
+                for transparency's sake since objectproperty decoders keep the source
+                of the file, however it is never promised to be accurate.
+        """
         for field in self.fields:
             field.po_decoder.set_typecache(typecache, typedef_path)
 
@@ -450,6 +524,24 @@ class DMLMessageDef(HumanReprMixin):
         has_dml_header=False,
         packet_bytes: bytes = None,
     ) -> DMLMessage:
+        """
+        decode_message takes a message payload and decodes it as an instance
+        of this message definition's data.
+
+        Args:
+            reader (BytestreamReader | bytes): message payload
+            has_ki_header (bool, optional): the payload still has the ki
+               frame header. Defaults to False.
+            has_dml_header (bool, optional): the payload still has the DML
+                frame header. Defaults to False.
+            packet_bytes (bytes, optional): the full message payload, used to
+                enable "original data" serialization and is not required but
+                strongly recommended. Defaults to None.
+
+        Returns:
+            DMLMessage: container holding the decoded data as well as a
+                reference to this decoder for shared information
+        """
         if has_ki_header:
             # advance past ki header and message header
             reader.advance(PACKET_HEADER_LEN)

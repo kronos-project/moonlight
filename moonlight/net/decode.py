@@ -11,12 +11,33 @@ logger = logging.getLogger(__name__)
 
 
 class PacketReader:
+    """
+    Reader for moonlight-compatible message data. Requires a path to a folder
+    containing extracted root wad message definitions. Optionally takes a
+    path to wizwalker typedefs for further decoding of objectproperty.
+    """
+
     def __init__(
         self,
         msg_def_folder: PathLike,
         typedef_path: PathLike = None,
         silence_decode_errors: bool = False,
     ):
+        """
+        __init__
+
+        Args:
+            msg_def_folder (PathLike): folder containing extracted root wad
+                message definitions. These are xml files named "*Messages[0-9]?.xml"
+                containing "service" definitions, however the naming is
+                somewhat inconsistent within the file, so moonlight calls
+                them protocols for simplicity's sake.
+            typedef_path (PathLike, optional): wizwalker typedefs, used to
+                decode objectproperties. Defaults to None.
+            silence_decode_errors (bool, optional): when a message cannot be
+                decoded, return None instead of raising an error.
+                Defaults to False.
+        """
         self.msg_def_folder = msg_def_folder
         self.silence_decode_errors = silence_decode_errors
 
@@ -47,6 +68,16 @@ class PacketReader:
         ) from exc
 
     def decode_flagtool_packet(self, bites: bytes) -> FlagtoolMessage:
+        """
+        decode_flagtool_packet decodes a flagtool packet. Nuff' said.
+
+        Args:
+            bites (bytes): message contents
+
+        Returns:
+            FlagtoolMessage: objectproperty serialization data
+        """
+
         try:
             return FlagtoolMessage.from_bytes(bites)
         except ValueError as err:
@@ -54,6 +85,16 @@ class PacketReader:
             return self._handle_decode_exc(err, bites)
 
     def decode_ki_packet(self, bites: bytes) -> Message:
+        """
+        decode_ki_packet decodes a ki message into a DML or Control message
+
+        Args:
+            bites (bytes): message contents
+
+        Returns:
+            Message: decoded message
+        """
+
         if isinstance(bites, bytes):
             reader = BytestreamReader(bites)
         else:
