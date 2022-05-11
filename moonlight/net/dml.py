@@ -602,6 +602,12 @@ class DMLMessageDef(HumanReprMixin):
 
 
 class DMLProtocol:
+    """
+    Represents one of the root wad message protocol files. Processes and manages
+    MessageDefinitions as well as decoding message payloads from the represented
+    protocol
+    """
+
     def parse_dml_file(self, filename: PathLike) -> None:
         """Loads the protocol according to the given xml
 
@@ -639,6 +645,13 @@ class DMLProtocol:
         self.message_map = DMLMessageDef.list_to_id_map(message_defs)
 
     def __init__(self, filename: PathLike | None = None) -> None:
+        """
+        __init__
+
+        Args:
+            filename (PathLike | None, optional): path to the dml message
+                file this protocol will represent. Defaults to None.
+        """
         self.id: int = None  # pylint: disable=invalid-name
         self.type: str = None
         self.version: int = None
@@ -697,6 +710,10 @@ class DMLProtocol:
 
 
 class DMLProtocolRegistry:
+    """
+    A collection of dml protocols sharing a typedef
+    """
+
     def __init__(self, *protocol_files, typedef_path: PathLike | None = None) -> None:
         self.protocol_map: Dict[int, DMLProtocol] = {}
         self.typedef_path = typedef_path
@@ -711,17 +728,42 @@ class DMLProtocolRegistry:
         if typedef_path:
             raise NotImplementedError
 
-    def load_service(self, protocol_file):
+    def load_service(self, protocol_file: PathLike):
+        """
+        load_service adds another protocol to the registry, automatically
+        setting typedef information
+
+        Args:
+            protocol_file (PathLike): path to protocol file to load
+        """
         protocol = DMLProtocol(protocol_file)
         logger.debug("loaded protocol %d: %s", protocol.id, protocol.desc)
         for msg in protocol.message_map.values():
             logger.debug("\t%s", repr(msg))
         self.protocol_map[protocol.id] = protocol
 
-    def get_by_id(self, id_: int):
+    def get_by_id(self, id_: int) -> DMLProtocol:
+        """
+        get_by_id returns the protocol with the specified id
+
+        Args:
+            id_ (int): protocol id
+
+        Returns:
+            DMLProtocol: protocol with that id
+        """
+
         return self.protocol_map[id_]
 
     def load_typedef(self, typedef_path: PathLike):
+        """
+        load_typedef sets a new typedef for the registry and assigns it to
+        all loaded child protocols
+
+        Args:
+            typedef_path (PathLike): path to the new typedefs
+        """
+
         cache = build_typecache(typedef_path)
         for protocol in self.protocol_map.values():
             for msg in protocol.message_map.values():
@@ -731,6 +773,20 @@ class DMLProtocolRegistry:
         self,
         bites: bytes,
     ) -> DMLMessage:
+        """
+        decode_packet decodes a DML message payload into its structured form
+
+        Args:
+            bites (bytes): message payload
+
+        Raises:
+            ValueError: payload is either invalid or not a registered message
+                within the registry
+
+        Returns:
+            DMLMessage: payload structured form
+        """
+
         original_bites = bites
         bites = BytestreamReader(bites)
         ki_header = KIHeader.from_bytes(bites)
