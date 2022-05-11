@@ -22,7 +22,7 @@ def build_typecache(path: PathLike) -> TypeCache:
         path (PathLike): path to typedef file
 
     Returns:
-        TypeCache: _description_
+        TypeCache: printrospector typecache
     """
     with open(path, encoding="utf-8") as file:
         return TypeCache(json.load(file))

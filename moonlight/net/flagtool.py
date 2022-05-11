@@ -1,3 +1,9 @@
+"""
+Message implementation for netpack flagtool
+"""
+
+from __future__ import annotations
+
 import struct
 from dataclasses import dataclass
 from typing import Any
@@ -7,6 +13,12 @@ from .common import DMLType, Message
 
 @dataclass(kw_only=True)
 class FlagtoolMessage(Message):
+    """
+    FlagtoolMessage is an implementation of the netpack flagtool network
+    traffic payload. When in a packet capture from libnetpack, these messages
+    can be recognized and parsed into a usable form.
+    """
+
     serializer_hash: int
     flags: int
     serializer_flags: int
@@ -15,6 +27,9 @@ class FlagtoolMessage(Message):
     serializer_type: str
 
     def as_serde_dict(self) -> dict[str, Any] | Any:
+        """
+        See `SerdeMixin#as_serde_dict`
+        """
         return {
             **super().as_serde_dict(),
             "data": {
@@ -50,7 +65,20 @@ class FlagtoolMessage(Message):
         }
 
     @classmethod
-    def from_bytes(cls, bites: bytes):
+    def from_bytes(cls, bites: bytes) -> FlagtoolMessage:
+        """
+        from_bytes unpacks a message from its payload format into a FlagtoolMessage
+
+        Args:
+            bites (bytes): message payload
+
+        Raises:
+            ValueError: provided payload does not describe a flagtool message
+
+        Returns:
+            _type_: _description_
+        """
+
         # Copied from https://github.com/kronos-project/netpack/blob/ecdfe34b35acd0dedbf3249a11e2e2783445faa9/scapy_client.py#L45
         try:
             (

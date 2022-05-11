@@ -1,3 +1,5 @@
+"""Implementation of the human representation mixin"""
+
 from types import LambdaType
 from typing import Any, Tuple
 
@@ -82,6 +84,10 @@ class HumanReprMixin:
     HUMAN_REPR_ORDER_APPEND: Tuple[str] = ()
 
     def as_human_dict(self, compact=True) -> Any:
+        """
+        Using class variables as defined in `HumanReprMixin`, returns a dict
+        of the current object
+        """
         keypairs: dict[str, Any] = {}
 
         if self.HUMAN_REPR_REPR_ON_COMPACT:
