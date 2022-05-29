@@ -176,7 +176,7 @@ def packet(  # pylint: disable=too-many-arguments
             )
         )
     else:
-        click.echo(json.dumps(obj=msg, cls=SerdeJSONEncoder, indent=2))
+        click.echo(SerdeJSONEncoder(show_service=True, indent=2).encode(msg))
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
