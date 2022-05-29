@@ -26,39 +26,39 @@ class FlagtoolMessage(Message):
     is_exhaustive: bool
     serializer_type: str
 
-    def as_serde_dict(self) -> dict[str, Any] | Any:
+    def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         """
         See `SerdeMixin#as_serde_dict`
         """
         return {
-            **super().as_serde_dict(),
+            **super().as_serde_dict(**kwargs),
             "data": {
                 "format": "FLAGTOOL",
                 "name": type(self).__name__,
                 "fields": {
                     "serializer_hash": {
                         "value": self.serializer_hash,
-                        "format": DMLType.UINT32.as_serde_dict(),
+                        "format": DMLType.UINT32.as_serde_dict(**kwargs),
                     },
                     "flags": {
                         "value": self.flags,
-                        "format": DMLType.UINT32.as_serde_dict(),
+                        "format": DMLType.UINT32.as_serde_dict(**kwargs),
                     },
                     "serializer_flags": {
                         "value": self.serializer_flags,
-                        "format": DMLType.UINT32.as_serde_dict(),
+                        "format": DMLType.UINT32.as_serde_dict(**kwargs),
                     },
                     "is_save": {
                         "value": self.is_save,
-                        "format": DMLType.BOOL.as_serde_dict(),
+                        "format": DMLType.BOOL.as_serde_dict(**kwargs),
                     },
                     "is_exhaustive": {
                         "value": self.is_exhaustive,
-                        "format": DMLType.BOOL.as_serde_dict(),
+                        "format": DMLType.BOOL.as_serde_dict(**kwargs),
                     },
                     "serializer_type": {
                         "value": self.serializer_type,
-                        "format": DMLType.UINT8.as_serde_dict(),
+                        "format": DMLType.UINT8.as_serde_dict(**kwargs),
                     },
                 },
             },

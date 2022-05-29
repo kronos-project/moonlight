@@ -1,7 +1,4 @@
-"""
-    Shared stuff between the KI network protocol
-"""
-
+"""Shared stuff between the KI network protocol"""
 
 from __future__ import annotations
 import contextlib
@@ -20,8 +17,7 @@ DML_HEADER_LEN = 2
 
 
 class MessageSender(HumanReprMixin, SerdeMixin, Enum):
-    """
-    MessageSender represents one of the various creators of a message within
+    """Represents one of the various creators of a message within
     Wizard101 and/or the kronos toolkit.
     """
 
@@ -36,13 +32,14 @@ class MessageSender(HumanReprMixin, SerdeMixin, Enum):
     def as_human_dict(self, compact=True) -> dict[str, Any] | str:
         return self.name
 
-    def as_serde_dict(self) -> dict[str, Any] | Any:
+    def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         return self.name
 
     @classmethod
     def from_capture_port(cls, port: int) -> MessageSender | None:
-        """
-        from_capture_port gets the sender enum based on the netpack capture
+        """Get sender via pcap destination port
+
+        Gets the sender enum based on the netpack capture
         synthetic port. These numbers are based off the storing netpack
         client's implementation (moonlight being libnetpack)
 
@@ -60,7 +57,8 @@ class MessageSender(HumanReprMixin, SerdeMixin, Enum):
 
 @dataclass(init=True, repr=True, kw_only=True)
 class Message(HumanReprMixin, SerdeMixin):
-    """
+    """Base message type
+
     Message is the base type of all message implementations in moonlight.
     Extend it to create new types of messages.
     """
@@ -73,13 +71,15 @@ class Message(HumanReprMixin, SerdeMixin):
     HUMAN_REPR_ORDER_PREPEND = ("timestamp", "sender")
     HUMAN_REPR_ORDER_APPEND = ("ki_header", "original_bytes")
 
-    def as_serde_dict(self) -> dict[str, Any] | Any:
+    def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         """
         See `moonlight.util.SerdeMixin#as_serde_dict`
         """
         # Override as we are doing more than the mixin is intended for
         return {
-            "sender": None if self.sender is None else self.sender.as_serde_dict(),
+            "sender": None
+            if self.sender is None
+            else self.sender.as_serde_dict(**kwargs),
             "timestamp": None if self.timestamp is None else self.timestamp.isoformat(),
             "raw": bytes_to_pretty_str(self.original_bytes),
         }
@@ -149,8 +149,6 @@ class DMLType(SerdeMixin, Enum):
 
     def __init__(self, t_name, length, struct_code):
         """
-        __init__
-
         Args:
             t_name (str): name of the encoding type
             length (int): length of the encoded information.
@@ -164,8 +162,9 @@ class DMLType(SerdeMixin, Enum):
 
     @classmethod
     def from_str(cls, t_name_: str) -> DMLType | None:  # sourcery skip: use-next
-        """
-        from_str enum described by the given string or `None` if invalid
+        """String representation to DMLType
+
+        Enum described by the given string or `None` if invalid
 
         Args:
             t_name (str): The enum's name.
@@ -178,7 +177,7 @@ class DMLType(SerdeMixin, Enum):
                 return enum
         return None
 
-    def as_serde_dict(self) -> dict[str, Any] | Any:
+    def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         """
         See `SerdeMixin#as_serde_dict`
         """
@@ -192,7 +191,9 @@ class DMLType(SerdeMixin, Enum):
 
 
 class BytestreamReader:
-    """Wrapper of BufferedReader used to simplify reading bytestrings
+    """Byte reading utility with `DMLType` integration
+
+    Wrapper of BufferedReader used to simplify reading bytestrings
     into their standard type value. Accepts any DMLType not prefaced
     with a length. Otherwise, you'll need to modify this as a special
     case.
@@ -202,7 +203,7 @@ class BytestreamReader:
         """Initializes a BytestreamReader with a bytestring
 
         Args:
-            bites ([bytes]): [bytestring to read]
+            bites (bytes): bytestring to add to buffer
         """
         self.stream = BytesIO(bites)
 
@@ -225,8 +226,7 @@ class BytestreamReader:
         return bites
 
     def __simple_read(self, dml_type: DMLType, peek=False) -> Any:
-        """
-        __simple_read reads DMLTypes that are always the same size and
+        """Reads DMLTypes that are always the same size and
         can be unpacked using the python struct module.
 
         Args:
@@ -236,7 +236,7 @@ class BytestreamReader:
 
         Raises:
             ValueError: if a known complex type is given (such as
-              a length-prefixed string STR or WSTR)
+                a length-prefixed string STR or WSTR)
 
         Returns:
             Any: the given DMLType's python representation
@@ -283,7 +283,7 @@ class BytestreamReader:
                 self.stream.seek(buffer_pos)
 
     def advance(self, length: int):
-        """advance advances the internal stream by `length` bytes
+        """Advance the internal stream by `length` bytes
 
         Args:
             length (int): number of bytes to advance
@@ -292,7 +292,7 @@ class BytestreamReader:
         self.stream.read(length)
 
     def read(self, dml_type: DMLType, peek: bool = False) -> Any:
-        """read reads a `DMLType` from the stream
+        """Reads a `DMLType` from the stream
 
         Args:
             dml_type (DMLType): Expected `DMLType` of the field
@@ -309,7 +309,7 @@ class BytestreamReader:
         return self.__simple_read(dml_type, peek)
 
     def peek(self, enc_type: DMLType) -> Any:
-        """peek reads a `DMLType` from the stream, not advancing the head.
+        """Reads a `DMLType` from the stream, not advancing the head.
 
         Args:
             enc_type (DMLType): Expected `DMLType` of the field
@@ -321,8 +321,7 @@ class BytestreamReader:
         return self.read(enc_type, peek=True)
 
     def bytes_remaining(self) -> int:
-        """
-        bytes_remaining gets the number of bytes remaining in the buffer
+        """Number of bytes remaining in the buffer
 
         Returns:
             int: num of bytes remaining in buffer
@@ -330,8 +329,7 @@ class BytestreamReader:
         return self.stream.getbuffer().nbytes - self.stream.tell()
 
     def buffer_position(self) -> int:
-        """
-        buffer_position gets the reading head's index in the buffer
+        """Reading head's index in the buffer
 
         Returns:
             int: current index of reading head
@@ -339,8 +337,11 @@ class BytestreamReader:
         return self.stream.tell()
 
     def get_buffer(self) -> memoryview:
-        """
-        get_buffer gets the underlying buffer
+        """Gets the reader's underlying buffer
+
+        Under the hood, BytestreamReader is using `BytesIO` to scan over
+        a message payload. `get_buffer` provides access to the underlying
+        buffer of bytesio.
 
         Returns:
             memoryview: underlying buffer
@@ -348,8 +349,9 @@ class BytestreamReader:
         return self.stream.getbuffer()
 
     def peek_remaining(self) -> bytes:
-        """
-        peek_remaining gets the remaining bytes in the buffer without advancing
+        """Get bytes remaining in the buffer
+
+        Gets the remaining bytes in the buffer without advancing
         the reading head
 
         Returns:
@@ -379,8 +381,9 @@ class KIHeader(SerdeMixin):
 
     @classmethod
     def from_bytes(cls, bites: bytes | BytestreamReader) -> KIHeader:
-        """
-        from_bytes creates a new header object from the provided bytes,
+        """Instantiates a new KIHeader from a packed bytestring
+
+        Creates a new header object from the provided bytes,
         assuming they are valid
 
         Args:

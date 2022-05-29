@@ -1,6 +1,4 @@
-"""
-Commands dealing with pcap file manipulation
-"""
+"""Commands dealing with pcap file manipulation"""
 
 import pathlib
 from os import PathLike
@@ -10,8 +8,7 @@ import click
 
 @click.group()
 def pcap():
-    """
-    Packet capture manipulation
+    """Packet capture manipulation
 
     Commands revolving around the manipulation and processing of PCAP files.
     Decoding PCAP files can be found within the `moonlight decode` subcommand.
@@ -45,8 +42,7 @@ def pcap():
 def filter_cmd(
     input_f: PathLike, output_f: PathLike, sanitize: bool, zip: bool
 ):  # pylint: disable=redefined-builtin
-    """
-    Filter content of pcap files
+    """Filter content of pcap files
 
     Filter takes compatible packet capture files (wireshark) and removes all
     packets that aren't part of the KI network protocol, greatly reducing the
@@ -71,8 +67,7 @@ def filter_cmd(
 
 
 def register(group: click.Group):
-    """
-    register adds pcap commands to the given command group
+    """Adds pcap commands to the given command group
 
     Args:
         group (click.Group): command group to add pcap commands to

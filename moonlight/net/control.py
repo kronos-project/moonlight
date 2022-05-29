@@ -7,6 +7,8 @@ from argparse import ArgumentError
 from dataclasses import dataclass
 import struct
 from typing import Any
+
+from moonlight.util import bytes_to_pretty_str
 from .common import (
     BytestreamReader,
     KIHeader,
@@ -15,7 +17,6 @@ from .common import (
     DMLType,
     MessageSender,
 )
-from moonlight.util import bytes_to_pretty_str
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,9 @@ class ControlMessage(Message):
 
     session_id: int
 
+    def _session_offer_serde_field(self) -> dict:
+        return {"value": self.session_id, "format": "int"}
+
 
 @dataclass(init=True, repr=True, kw_only=True)
 class SessionOfferMessage(ControlMessage):
@@ -47,13 +51,14 @@ class SessionOfferMessage(ControlMessage):
     signed_msg_len: int
     signed_msg: bytes
 
-    def as_serde_dict(self) -> dict[str, Any] | Any:
+    def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         return {
-            **super().as_serde_dict(),
+            **super().as_serde_dict(**kwargs),
             "data": {
                 "format": "CONTROL",
                 "name": type(self).__name__,
                 "fields": {
+                    "session_id": self._session_offer_serde_field(),
                     "unix_timestamp_seconds": {
                         "value": self.unix_timestamp_seconds,
                         "format": "int",
@@ -110,9 +115,9 @@ class SessionAcceptMessage(ControlMessage):
     signed_msg_len: int
     signed_msg: bytes
 
-    def as_serde_dict(self) -> dict[str, Any] | Any:
+    def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         return {
-            **super().as_serde_dict(),
+            **super().as_serde_dict(**kwargs),
             "data": {
                 "format": "CONTROL",
                 "name": type(self).__name__,
@@ -129,6 +134,7 @@ class SessionAcceptMessage(ControlMessage):
                         "value": self.unix_timestamp_millis_into_second,
                         "format": "int",
                     },
+                    "session_id": self._session_offer_serde_field(),
                     "signed_msg": {
                         "value": bytes_to_pretty_str(self.signed_msg),
                         "format": "pretty bytes",
@@ -198,9 +204,10 @@ class KeepAliveMessage(ControlMessage):
         # bytes 3-4 hold if from client
         return BytestreamReader(self.variable_timestamp[2:]).read(DMLType.UINT16)
 
-    def as_serde_dict(self) -> dict[str, Any] | Any:
+    def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         if self.sender is MessageSender.CLIENT:
             datafields = {
+                "session_id": self._session_offer_serde_field(),
                 "min_into_session": {
                     "value": self.client_min_into_session(),
                     "format": "int",
@@ -212,13 +219,14 @@ class KeepAliveMessage(ControlMessage):
             }
         else:
             datafields = {
+                "session_id": self._session_offer_serde_field(),
                 "millis_since_start": {
                     "value": self.server_millis_since_start(),
                     "format": "int",
-                }
+                },
             }
         return {
-            **super().as_serde_dict(),
+            **super().as_serde_dict(**kwargs),
             "data": {
                 "format": "CONTROL",
                 "name": type(self).__name__,

@@ -401,13 +401,23 @@ class DMLMessage(Message):
                 return field
         raise AttributeError
 
-    def as_serde_dict(self) -> dict[str, Any] | Any:
+    def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         """See `SerdeMixin#as_serde_dict`"""
+        if kwargs.get("show_service", False):
+            verbose = {
+                "order": self.definition.order_id,
+                "service_id": self.definition.protocol.id,
+                "service_desc": self.definition.protocol.desc,
+            }
+        else:
+            verbose = {}
+
         return {
-            **super().as_serde_dict(),
+            **super().as_serde_dict(**kwargs),
             "data": {
                 "format": "DML",
                 "name": self.name(),
+                **verbose,
                 "fields": {k: v for (k, v) in map(field_to_serde_keyval, self.fields)},
             },
         }

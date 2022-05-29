@@ -1,6 +1,4 @@
-"""
-    Provides capture utilities for working with KI game network data
-"""
+"""Provides capture utilities for working with KI game network data"""
 
 from datetime import datetime
 import logging
@@ -10,6 +8,7 @@ import traceback
 from os import PathLike, listdir
 import os.path
 from os.path import isfile
+from typing import Callable
 
 
 # scapy on import prints warnings about system interfaces
@@ -42,14 +41,13 @@ SENSITIVE_MSG_OPCODES = [SessionAcceptMessage.OPCODE, SessionOfferMessage.OPCODE
 
 def is_interesting_packet_naive(packet: Packet) -> bool:
     """
-    is_interesting_packet_naive naively determines if a packet is one
-        moonlight is capable of decoding
+    Naively determines if a packet is one moonlight is capable of decoding
 
     Args:
         packet (Packet): packet
 
     Returns:
-        bool: `True` if the packet is interesting
+        bool: the packet is interesting
     """
     return TCP in packet.layers() and isinstance(packet[TCP].payload, Raw)
 
@@ -94,10 +92,8 @@ class PcapReader(PacketReader):
     def __init__(
         self,
         pcap_path: PathLike,
+        msg_def_folder: PathLike,
         typedef_path: PathLike = None,
-        msg_def_folder: PathLike = os.path.join(
-            os.path.dirname(__file__), "..", "..", "res", "dml", "messages"
-        ),
         silence_decode_errors: bool = False,
     ) -> None:
         super().__init__(
@@ -165,35 +161,42 @@ class PcapReader(PacketReader):
         self.close()
 
 
-class LiveSniffer:
+class LiveSniffer(PacketReader):
     """
     Live traffic sniffer for Wizard101. Relies on the connection being unencrypted
     """
 
     def __init__(
         self,
-        dml_def_folder: PathLike = os.path.join(
-            os.path.dirname(__file__), "..", "res", "dml", "messages"
-        ),
-        filter_: str = "dst host 127.0.0.1 or src host 127.0.0.1",
+        filter_str: str,
+        callback: Callable[[Message, Packet], None],
+        msg_def_folder: PathLike,
+        iface: str = "lo0",
+        client_port: int = None,
+        typedef_path: PathLike = None,
+        silence_decode_errors: bool = False,
     ):
-        self.stream = None
-        self.filter_ = filter_
-        protocols = [
-            f
-            for f in listdir(dml_def_folder)
-            if isfile(os.path.join(dml_def_folder, f))
-        ]
-        protocols = map(lambda x: os.path.join(dml_def_folder, x), protocols)
-        self.decoder = PacketReader(msg_def_folder=dml_def_folder)
+        super().__init__(msg_def_folder, typedef_path, silence_decode_errors)
+        self.filter_str = filter_str
+        self.callback = callback
+        self.iface = iface
+        self.client_port = client_port
+        self.sniffer = None
 
     def _scapy_callback(self, pkt: Packet):
-        if not isinstance(pkt[TCP].payload, Raw):
+        if not (is_interesting_packet_naive(pkt) and is_ki_packet_naive(pkt)):
             return
         try:
             bites = bytes(pkt[TCP].payload)
-            message = self.decoder.decode_ki_packet(bites)
-            logger.info(message)
+            message = self.decode_ki_packet(bites)
+            message.timestamp = datetime.now()
+            if pkt[TCP].dport == self.client_port:
+                message.sender = MessageSender.CLIENT
+            elif self.client_port:
+                message.sender = MessageSender.SERVER
+
+            logger.debug("Captured message: %s", message)
+            self.callback(message, pkt)
         except ValueError as err:
             if str(err).startswith("Not a KI game protocol packet."):
                 logger.debug(err)
@@ -205,15 +208,16 @@ class LiveSniffer:
         open_livestream starts sniffing using the set filter, waiting for either
             a SIGINT signal or for `close_livestream` to be called
         """
-        self.stream = AsyncSniffer(
-            filter=self.filter_,
+        self.sniffer = AsyncSniffer(
+            filter=self.filter_str,
             session=TCPSession,
             prn=self._scapy_callback,
+            iface=self.iface,
         )
         logger.info("Starting sniffer")
-        self.stream.start()
+        self.sniffer.start()
         logger.info("Waiting for end signal (SIGINT)")
-        self.stream.join()
+        self.sniffer.join()
 
     def close_livestream(self, join=True):
         """
@@ -225,7 +229,7 @@ class LiveSniffer:
             join (bool, optional): Wait for the livestream to
                 exit before returning. Defaults to True.
         """
-        self.stream.stop(join=join)
+        self.sniffer.stop(join=join)
 
 
 def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
