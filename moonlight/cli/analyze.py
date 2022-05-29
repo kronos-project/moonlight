@@ -1,6 +1,4 @@
-"""
-Commands for analyzing traffic
-"""
+"""Commands for analyzing traffic"""
 
 # from pathlib import Path
 # import logging

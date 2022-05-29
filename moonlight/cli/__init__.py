@@ -1,6 +1,4 @@
-"""
-Moonlight's CLI command registry. Load commands into a group with `register`.
-"""
+"""Moonlight's CLI command registry. Load commands into a group with `register`."""
 
 import click as _click
 

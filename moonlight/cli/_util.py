@@ -1,6 +1,4 @@
-"""
-Shared utilities for cli commands
-"""
+"""Shared utilities for cli commands"""
 
 from functools import wraps
 from pathlib import Path
@@ -8,10 +6,13 @@ import click
 
 
 def message_def_dir_arg(fun):
-    """
-    message_def_dir_arg wraps `click.argument` to require wizard101
-      message definitions in a command. Arg type is an existing `pathlib.Path`
-      to a directory.
+    """Require message definition directory
+
+    Wraps `click.argument` to require wizard101 message definitions in a
+    command. Arg type is an existing `pathlib.Path` to a directory.
+
+    Args:
+        fun(function): decorating function
     """
 
     @wraps(fun)
@@ -26,11 +27,13 @@ def message_def_dir_arg(fun):
 
 
 def typedef_option(fun):
-    """
-    typedef_option wraps `click.option` to request a wizwalker typedef
-      file in a command. Option type is an existing `pathlib.Path` to a
-      file.
+    """Require wizwalker typedef
 
+    Wraps `click.option` to request a wizwalker typedef file in a command.
+    Option type is an existing `pathlib.Path` to a file.
+
+    Args:
+        fun(function): decorating function
     """
 
     @wraps(fun)

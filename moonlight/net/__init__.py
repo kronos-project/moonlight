@@ -1,4 +1,5 @@
-"""
+"""Packet network data interpretation
+
 Data structures and interpreters used in the transmission of Wizard101
 and W101 tooling applications. Includes parsers for DML, control data,
 objectproperty, netpack flagtool, and extensions of the scapy API for
