@@ -34,8 +34,6 @@ def _unpack_weirdo_timestamp(reader: BytestreamReader):
 class ControlMessage(Message):
     OPCODE = None
 
-    HUMAN_REPR_ORDER_PREPEND = (*Message.HUMAN_REPR_ORDER_PREPEND, "ctrl_type")
-
     session_id: int
 
     def _session_offer_serde_field(self) -> dict:
@@ -178,18 +176,6 @@ class SessionAcceptMessage(ControlMessage):
 @dataclass(init=True, repr=True, kw_only=True)
 class KeepAliveMessage(ControlMessage):
     OPCODE = 0x3
-    HUMAN_REPR_SYNTHETIC = {
-        **ControlMessage.HUMAN_REPR_SYNTHETIC,
-        "_client_min_into_session": lambda x: x.client_min_into_session()
-        if x.sender is MessageSender.CLIENT
-        else None,
-        "_client_millis_into_second": lambda x: x.client_millis_into_second()
-        if x.sender is MessageSender.CLIENT
-        else None,
-        "_server_millis_since_start": lambda x: x.server_millis_since_start()
-        if x.sender is MessageSender.SERVER
-        else None,
-    }
 
     variable_timestamp: bytes
 

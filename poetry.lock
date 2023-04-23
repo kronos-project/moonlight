@@ -506,6 +506,7 @@ url = "https://github.com/vbe0201/kobold"
 reference = "main"
 resolved_reference = "5b88fc4ced9fc63acfc487cb6e21cfc2641ab3c6"
 subdirectory = "py"
+
 [[package]]
 name = "matplotlib-inline"
 version = "0.1.6"
@@ -681,7 +682,7 @@ virtualenv = ">=20.10.0"
 [[package]]
 name = "printrospector"
 version = "0.2.0"
-description = ""
+description = "CLI utility to view serialized ObjectProperty state as XML"
 category = "main"
 optional = false
 python-versions = ">=3.6.0"
@@ -1011,24 +1012,19 @@ cffi = {version = "*", markers = "implementation_name == \"pypy\""}
 
 [[package]]
 name = "scapy"
-version = "2.5.0.dev71"
+version = "2.5.0"
 description = "Scapy: interactive packet manipulation tool"
 category = "main"
 optional = false
-python-versions = "<4,>=3.7"
-files = []
-develop = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, <4"
+files = [
+    {file = "scapy-2.5.0.tar.gz", hash = "sha256:5b260c2b754fd8d409ba83ee7aee294ecdbb2c235f9f78fe90bc11cb6e5debc2"},
+]
 
 [package.extras]
 basic = ["ipython"]
 complete = ["cryptography (>=2.0)", "ipython", "matplotlib", "pyx"]
 docs = ["sphinx (>=3.0.0)", "sphinx_rtd_theme (>=0.4.3)", "tox (>=3.0.0)"]
-
-[package.source]
-type = "git"
-url = "https://github.com/secdev/scapy.git"
-reference = "master"
-resolved_reference = "ee7d0b47c8a53e98cb109add3eeaba66958b07c7"
 
 [[package]]
 name = "setuptools"
@@ -1191,4 +1187,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<4"
-content-hash = "079d10b2b065d6384d40c9c2d1f699963e059700af09e7416883d54c6621cd41"
+content-hash = "66ae3a452a4dd4564cd8542be91fd7c4de6b065b7d5ff54068ce42ba5e69ad0b"

@@ -141,11 +141,18 @@ def live(
     type=click.Choice(["base64", "raw", "hex"]),
     help="Format of the input packet data",
 )
+@click.option(
+    "--dml-only",
+    is_flag=True,
+    default=False,
+    help="Interpret the information as a DML frame, skipping the control info",
+)
 def packet(  # pylint: disable=too-many-arguments
     message_def_dir: Path,
     input_str: str,
     typedefs: Path,
     in_fmt: str,
+    dml_only: bool,
 ):
     """Decodes packet from stdin
 
@@ -167,7 +174,12 @@ def packet(  # pylint: disable=too-many-arguments
         typedef_path=typedefs,
         msg_def_folder=message_def_dir,
     )
-    msg = rdr.decode_ki_packet(input_str)
+
+    if dml_only:
+        msg = rdr.dml_protocol.decode_packet(input_str, has_ki_header=False)
+    else:
+        msg = rdr.decode_ki_packet(input_str)
+
     click.echo()
     if msg is None:
         click.echo(

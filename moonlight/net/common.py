@@ -10,13 +10,13 @@ import struct
 from io import BytesIO
 from typing import Any
 
-from moonlight.util import HumanReprMixin, SerdeMixin, bytes_to_pretty_str
+from moonlight.util import SerdeMixin, bytes_to_pretty_str
 
 PACKET_HEADER_LEN = 8
 DML_HEADER_LEN = 2
 
 
-class MessageSender(HumanReprMixin, SerdeMixin, Enum):
+class MessageSender(SerdeMixin, Enum):
     """Represents one of the various creators of a message within
     Wizard101 and/or the kronos toolkit.
     """
@@ -27,10 +27,6 @@ class MessageSender(HumanReprMixin, SerdeMixin, Enum):
 
     def __init__(self, sender) -> None:
         self.netpack_port = sender
-
-    # override since we cant use the class constants to customize
-    def as_human_dict(self, compact=True) -> dict[str, Any] | str:
-        return self.name
 
     def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         return self.name
@@ -56,7 +52,7 @@ class MessageSender(HumanReprMixin, SerdeMixin, Enum):
 
 
 @dataclass(init=True, repr=True, kw_only=True)
-class Message(HumanReprMixin, SerdeMixin):
+class Message(SerdeMixin):
     """Base message type
 
     Message is the base type of all message implementations in moonlight.
@@ -67,9 +63,6 @@ class Message(HumanReprMixin, SerdeMixin):
     ki_header: KIHeader = None
     sender: MessageSender | None = None
     timestamp: datetime | None = None
-
-    HUMAN_REPR_ORDER_PREPEND = ("timestamp", "sender")
-    HUMAN_REPR_ORDER_APPEND = ("ki_header", "original_bytes")
 
     def as_serde_dict(self, **kwargs) -> dict[str, Any] | Any:
         """

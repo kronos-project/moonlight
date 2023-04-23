@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from os import PathLike
 from typing import Any, Dict, List, Tuple, Type
 
-from moonlight.util import HumanReprMixin, SerdeMixin, bytes_to_pretty_str
+from moonlight.util import SerdeMixin, bytes_to_pretty_str
 from printrospector.object import DynamicObject
 from printrospector.type_cache import TypeCache
 
@@ -19,7 +19,6 @@ from .common import (
     PACKET_HEADER_LEN,
     BytestreamReader,
     DMLType,
-    HumanReprMixin,
     KIHeader,
     Message,
 )
@@ -60,14 +59,13 @@ def field_to_serde_keyval(field: "Field") -> Tuple:
     return (field.name(), {"value": f_value, "format": f_format})
 
 
-class FieldDef(HumanReprMixin, SerdeMixin):
+class FieldDef(SerdeMixin):
     """
     Definition of a DML field within a message. Used to hold the represented
     xml from message definition files as well as property object decoding
     information.
     """
 
-    HUMAN_REPR_IGNORE = "po_decoder"
     SERDE_TRANSIENT = "po_decoder"
 
     # FIXME reduce number of fields. It's okay for now since this isn't
@@ -182,7 +180,7 @@ class FieldDef(HumanReprMixin, SerdeMixin):
         return f"<FieldDef '{self.name}({self.dml_type})'>"
 
 
-class Field(HumanReprMixin, SerdeMixin):
+class Field(SerdeMixin):
     """
     Specific instance of a DML field as defined by its `FieldDef`.
 
@@ -190,18 +188,7 @@ class Field(HumanReprMixin, SerdeMixin):
     unserialized. To get the represented property object, use `as_property_object`
     """
 
-    HUMAN_REPR_IGNORE = ("value", "definition")
     SERDE_TRANSIENT = ("value", "definition")
-    HUMAN_REPR_COMPACT_IGNORE = "noxfer"
-    HUMAN_REPR_ORDER_PREPEND = ("name", "value", "dml_type")
-    HUMAN_REPR_SYNTHETIC = {
-        "value": lambda x: x.as_property_object()
-        if x.is_property_object()
-        else x.value,
-        "name": lambda x: x.name(),
-        "dml_type": lambda x: x.dml_type().as_human_dict(),
-        "noxfer": lambda x: x.noxfer(),
-    }
     SERDE_SYNTHETIC = {
         "value": lambda x: x.as_property_object()
         if x.is_property_object()
@@ -307,30 +294,6 @@ class DMLMessage(Message):
     to the overall definition of the specific message type.
     """
 
-    HUMAN_REPR_IGNORE = "definition"
-    HUMAN_REPR_SYNTHETIC = {
-        "protocol_id": lambda x: x.protocol().id,
-        "protocol_desc": lambda x: x.protocol().desc,
-        "name": lambda x: x.name(),
-        "desc": lambda x: x.desc(),
-    }
-    HUMAN_REPR_COMPACT_IGNORE = (
-        "protocol",
-        "protocol_id",
-        "protocol_desc",
-        "order_id",
-        "header",
-    )
-    HUMAN_REPR_ORDER_PREPEND = (
-        *Message.HUMAN_REPR_ORDER_PREPEND,
-        "name",
-        "desc",
-        "protocol_id",
-        "protocol_desc",
-        "order_id",
-        "fields",
-    )
-
     fields: List[Field]
     definition: DMLMessageDef
     original_bytes: bytes = None
@@ -423,7 +386,7 @@ class DMLMessage(Message):
         }
 
 
-class DMLMessageDef(HumanReprMixin):
+class DMLMessageDef():
     """Defines a DML interface message and its structure.
     Provides a deserializer for the represented message."""
 
@@ -782,6 +745,7 @@ class DMLProtocolRegistry:
     def decode_packet(
         self,
         bites: bytes,
+        has_ki_header: bool = True
     ) -> DMLMessage:
         """
         decode_packet decodes a DML message payload into its structured form
@@ -796,10 +760,13 @@ class DMLProtocolRegistry:
         Returns:
             DMLMessage: payload structured form
         """
-
-        original_bites = bites
         bites = BytestreamReader(bites)
-        ki_header = KIHeader.from_bytes(bites)
+        if has_ki_header:
+            original_bites = bites
+            ki_header = KIHeader.from_bytes(bites)
+        else:
+            original_bites = None
+            ki_header = None
 
         protocol_id = bites.read(DMLType.UBYT)
         if protocol_id not in self.protocol_map:
