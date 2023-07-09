@@ -194,6 +194,84 @@ def packet(  # pylint: disable=too-many-arguments
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
+@decode.command()
+@message_def_dir_arg
+@click.argument(
+    "input_f",
+    type=click.Path(exists=True, file_okay=True, resolve_path=True, path_type=Path),
+)
+@click.argument(
+    "output_f",
+    type=click.Path(file_okay=True, resolve_path=True, path_type=Path),
+)
+@typedef_option
+def pcap(
+    message_def_dir: Path,
+    input_f: Path,
+    output_f: Path,
+    typedefs: Path,
+):
+    """
+    Decode pcap to a JSON representation
+
+    `moonlight decode pcap` takes a compatible packet capture file (wireshark) and converts all
+    unencrypted KI packets within it into a representation intended
+    to be easily read by another computer or human.
+
+    A packet is naively considered to be of the KI protocol if it starts with
+    the \\x0D\\xF0 magic (little endian F00D). This may be improved in the future.
+
+    MSG_DEF_DIR: Directory holding KI DML definitions
+
+    INPUT_F: A valid packet capture file containing KI network traffic
+
+    OUTPUT_F: File to write filtered capture to
+    """
+
+    # lazy load since scapy is kinda heavy
+    from moonlight.net.scapy import (
+        PcapReader,
+    )  # pylint: disable=import-outside-toplevel
+
+    from scapy.layers.inet import TCP
+
+    rdr = PcapReader(
+        pcap_path=input_f,
+        typedef_path=typedefs,
+        msg_def_folder=message_def_dir,
+        silence_decode_errors=False,
+    )
+    with open(output_f, "w", encoding="utf8") as writer:
+        messages = []
+        i = 1
+        while True:
+            try:
+                messages.append(next(rdr))
+            except ValueError as err:
+                messages.append(
+                    {
+                        "error": {
+                            "message": str(err),
+                            "raw": bytes_to_pretty_str(
+                                bytes(rdr.last_decoded_raw[TCP].payload)
+                            ),
+                        }
+                    }
+                )
+                continue
+            except StopIteration:
+                break
+            finally:
+                i += 1
+            if i % 100 == 0:
+                logger.info("Progress: completed %d so far", i)
+
+        logger.info("Progress: Dumping to file")
+        json.dump(obj=messages, fp=writer, cls=SerdeJSONEncoder, indent=2)
+    rdr.close()
+
+
+
 def register(group: click.Group):
     """Adds decode commands to the given click group
 
