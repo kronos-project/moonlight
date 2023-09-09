@@ -60,7 +60,7 @@ class Message(SerdeMixin):
     """
 
     original_bytes: bytes
-    ki_header: KIHeader = None
+    ki_header: KIHeader | None = None
     sender: MessageSender | None = None
     timestamp: datetime | None = None
 

@@ -77,8 +77,8 @@ class SessionOfferMessage(ControlMessage):
     def from_bytes(
         cls,
         reader: BytestreamReader | bytes,
-        original_bytes: bytes = None,
-        ki_header: KIHeader = None,
+        original_bytes: bytes | None = None,
+        ki_header: KIHeader | None = None,
         has_ki_header=False,
     ) -> ControlMessage:
         if isinstance(reader, bytes):

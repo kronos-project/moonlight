@@ -4,6 +4,7 @@ import pathlib
 from os import PathLike
 
 import click
+from click import Path
 
 
 @click.group()
@@ -40,7 +41,7 @@ def pcap():
     help="Output file compression via gzip",
 )
 def filter_cmd(
-    input_f: PathLike, output_f: PathLike, sanitize: bool, zip: bool
+    input_f: Path, output_f: Path, sanitize: bool, zip: bool
 ):  # pylint: disable=redefined-builtin
     """Filter content of pcap files
 
@@ -66,10 +67,10 @@ def filter_cmd(
     filter_pcap(input_f, output_f, compress=zip, sanitize=sanitize)
 
 
-def register(group: click.Group):
-    """Adds pcap commands to the given command group
+# def register_to_group(group: click.Group):
+#     """Adds pcap commands to the given command group
 
-    Args:
-        group (click.Group): command group to add pcap commands to
-    """
-    group.add_command(pcap)
+#     Args:
+#         group (click.Group): command group to add pcap commands to
+#     """
+#     group.add_command(pcap)
