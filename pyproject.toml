@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "moonlight"
-version = "0.4.0"
+version = "0.4.1"
 description = "Wizard101 traffic decoder"
 authors = ["Ethan Zeigler <ethanzeigler@gmail.com>", "Kronos Authors <>"]
 license = "GPL-3.0-only"
