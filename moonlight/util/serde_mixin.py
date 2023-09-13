@@ -6,12 +6,13 @@ from typing import Any, Tuple
 
 
 class SerdeMixin:
-    SERDE_TRANSIENT: Tuple[str] = ()
+    SERDE_TRANSIENT: tuple[str] | tuple[()] = ()
     SERDE_TRANSFORM: dict[str, Tuple[LambdaType, LambdaType]]
     SERDE_SYNTHETIC: dict[str, LambdaType]
     SERDE_RENAME: dict[str, str]
 
     def as_serde_dict(self, **kwargs) -> Any:
+        # sourcery skip: assign-if-exp, dict-comprehension
         keypairs: dict[str, Any] = {}
 
         for key, val in vars(self).items():
@@ -47,9 +48,10 @@ class SerdeMixin:
         return keypairs
 
     @classmethod
-    def from_serde_dict(cls, data: Any, ctx: dict[str, Any] = None) -> SerdeMixin:
-        if ctx is None:
-            ctx = {}
+    def from_serde_dict(cls, data: Any, ctx: dict[str, Any] = dict()) -> SerdeMixin:
+        raise NotImplementedError()
+        # if ctx is None:
+        #     ctx = {}
 
     # @classmethod
     # def from_serde_dict(cls):
@@ -57,11 +59,12 @@ class SerdeMixin:
 
 
 class SerdeJSONEncoder(JSONEncoder):
-    def __init__(self, indent: int = None, **kwargs):
+    def __init__(self, indent: int = 2, **kwargs):
         super().__init__(indent=indent)
         self.passthrough: dict = kwargs
 
     def default(self, o):
+        # sourcery skip: assign-if-exp, dict-comprehension, inline-immediately-returned-variable
         if isinstance(o, SerdeMixin):
             return o.as_serde_dict(**self.passthrough)
         elif isinstance(o, dict):

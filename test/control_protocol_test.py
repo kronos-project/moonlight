@@ -12,7 +12,7 @@ def control_protocol():
     return ControlProtocol()
 
 
-def test_session_offer(control_protocol: ControlProtocol, control_session_offer):
+def test_session_offer(control_protocol: ControlProtocol, control_session_offer): # type: ignore
     header = KIHeader.from_bytes(control_session_offer)
     message = control_protocol.decode_packet(
         control_session_offer, header, has_ki_header=True

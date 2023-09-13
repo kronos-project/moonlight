@@ -20,7 +20,7 @@ class PacketReader:
     def __init__(
         self,
         msg_def_folder: PathLike,
-        typedef_path: PathLike = None,
+        typedef_path: PathLike | None = None,
         silence_decode_errors: bool = False,
     ):
         """
@@ -67,7 +67,7 @@ class PacketReader:
             "Invalid packet data or message definitions", original_bytes
         ) from exc
 
-    def decode_flagtool_packet(self, bites: bytes) -> FlagtoolMessage:
+    def decode_flagtool_packet(self, bites: bytes) -> FlagtoolMessage | None:
         """
         decode_flagtool_packet decodes a flagtool packet. Nuff' said.
 
@@ -84,7 +84,7 @@ class PacketReader:
             # error handling and returns are dependent on reader settings
             return self._handle_decode_exc(err, bites)
 
-    def decode_ki_packet(self, bites: bytes) -> Message:
+    def decode_ki_packet(self, bites: bytes) -> Message | None:
         """
         decode_ki_packet decodes a ki message into a DML or Control message
 

@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 from os import chdir
-from os.path import *
+from os.path import join, dirname
 
 import pytest
 from moonlight.net.dml import FieldDef
@@ -25,7 +25,7 @@ def character_property_object():
 
 
 @pytest.fixture
-def create_character_field_def() -> ET.Element:
+def create_character_field_def() -> FieldDef:
     tree = ET.fromstring(
         '<CreationInfo TYPE="STR" PO_FLAGS="0" PO_MASK="24" PO_EXHAUSTIVE="false"></CreationInfo>'
     )

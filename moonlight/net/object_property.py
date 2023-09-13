@@ -40,9 +40,9 @@ class ObjectPropertyDecoder:
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        flags: int,
-        exhaustive: bool,
-        property_mask: int = 24,
+        flags: int | None,
+        exhaustive: bool | None,
+        property_mask: int | None = 24,
         typedef_path: PathLike | None = None,
         typecache: TypeCache | None = None,
     ) -> None:
@@ -50,8 +50,8 @@ class ObjectPropertyDecoder:
         Args:
             type_cache (TypeCache, optional): Pre-existing loaded typecache.
                 Takes precedence over `typedef_path` if both are provided.
-            flags (int): Serialization flags for the target property object
-            exhaustive (bool): Property object is in exhaustive mode
+            flags (int, optional): Serialization flags for the target property object
+            exhaustive (bool, optional): Property object is in exhaustive mode
             property_mask (int, optional): Field mask for the target property object.
                 Defaults to 24.
             typedef_path (PathLike, optional): Path to wizwalker typedefs json
@@ -101,7 +101,8 @@ class ObjectPropertyDecoder:
         self._typedef_path = typedef_path
         with open(self._typedef_path, encoding="utf-8") as file:
             self.typecache = TypeCache(json.load(file))
-        self.serializer = BinarySerializer(self.typecache, self.flags, self.exhaustive)
+        # FIXME: unsafe assumption that arguments are not None
+        self.serializer = BinarySerializer(self.typecache, self.flags, self.exhaustive) # type: ignore
 
     def set_typecache(self, cache: TypeCache, sourcepath: PathLike | None = None):
         """
@@ -113,7 +114,8 @@ class ObjectPropertyDecoder:
         """
         self.typecache = cache
         self._typedef_path = sourcepath
-        self.serializer = BinarySerializer(self.typecache, self.flags, self.exhaustive)
+        # FIXME: unsafe assumption that arguments are not None
+        self.serializer = BinarySerializer(self.typecache, self.flags, self.exhaustive) # type: ignore
 
     def can_deserialize(self) -> bool:
         """
@@ -145,7 +147,8 @@ class ObjectPropertyDecoder:
 
         self._verify_deserializer()
 
-        return self.serializer.deserialize(bites, property_mask=self.property_mask)
+        # FIXME: unsafe assumption that arguments are not None
+        return self.serializer.deserialize(bites, property_mask=self.property_mask) # type: ignore
 
     # FIXME: This is not well protecting itself to ensure serde flags are present
     def brute_force(self, bites: bytes) -> DynamicObject | None:
@@ -164,9 +167,10 @@ class ObjectPropertyDecoder:
 
         serializer_clone = copy(self.serializer)
         for flags in range(pow(2, 5)):
-            serializer_clone.serializer_flags = flags
+            serializer_clone.serializer_flags = flags # type: ignore
             with contextlib.suppress(Exception):
-                obj = serializer_clone.deserialize(bites, self.property_mask)
+                # FIXME: unsafe assumption that arguments are not None
+                obj = serializer_clone.deserialize(bites, self.property_mask) # type: ignore
                 if obj and len(obj.items()) > 0:
                     return obj
         return None

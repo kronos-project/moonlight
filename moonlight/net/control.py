@@ -145,8 +145,8 @@ class SessionAcceptMessage(ControlMessage):
     def from_bytes(
         cls,
         reader: BytestreamReader | bytes,
-        original_data: bytes = None,
-        ki_header: KIHeader = None,
+        original_data: bytes | None = None,
+        ki_header: KIHeader | None = None,
         has_ki_header=False,
     ) -> ControlMessage:
         if isinstance(reader, bytes):
@@ -224,8 +224,8 @@ class KeepAliveMessage(ControlMessage):
     def from_bytes(
         cls,
         reader: BytestreamReader | bytes,
-        original_data: bytes = None,
-        ki_header: KIHeader = None,
+        original_data: bytes | None = None,
+        ki_header: KIHeader | None = None,
         has_ki_header=False,
     ) -> ControlMessage:
         if isinstance(reader, bytes):
@@ -265,7 +265,7 @@ class ControlProtocol:
         self,
         bites: BytestreamReader | bytes,
         header: KIHeader,
-        original_data: bytes = None,
+        original_data: bytes | None = None,
         has_ki_header: bool = True,
     ) -> ControlMessage:
         """
@@ -286,9 +286,7 @@ class ControlProtocol:
             ControlMessage: _description_
         """
         if not header.content_is_control:
-            raise ArgumentError(
-                header, message="PacketHeader is not for control packet"
-            )
+            raise ValueError("PacketHeader is not for control packet")
         opcode = header.control_opcode
         if opcode == SessionOfferMessage.OPCODE:
             return SessionOfferMessage.from_bytes(
@@ -319,4 +317,4 @@ class ControlProtocol:
                 has_ki_header=has_ki_header,
             )
 
-        raise ArgumentError(header, message=f"Unrecognized opcode: {opcode}")
+        raise ValueError(f"Unrecognized opcode: {opcode}")

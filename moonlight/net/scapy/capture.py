@@ -1,15 +1,17 @@
 """Provides capture utilities for working with KI game network data"""
 
-from datetime import datetime
+from __future__ import annotations
+
 import logging
 import os
-from pathlib import Path
-import traceback
-from os import PathLike, listdir
 import os.path
+import traceback
+from datetime import datetime
+from os import PathLike, listdir
 from os.path import isfile
-from typing import Callable
-
+from pathlib import Path
+from typing import Callable, cast
+from moonlight.net.control import ControlMessage
 
 # scapy on import prints warnings about system interfaces
 # pylint: disable=wrong-import-position disable=wrong-import-order
@@ -33,7 +35,6 @@ from moonlight.net import (
     SessionAcceptMessage,
     SessionOfferMessage,
 )
-
 
 logger = logging.getLogger(__name__)
 SENSITIVE_MSG_OPCODES = [SessionAcceptMessage.OPCODE, SessionOfferMessage.OPCODE]
@@ -93,7 +94,7 @@ class PcapReader(PacketReader):
         self,
         pcap_path: PathLike,
         msg_def_folder: PathLike,
-        typedef_path: PathLike = None,
+        typedef_path: PathLike | None = None,
         silence_decode_errors: bool = False,
     ) -> None:
         super().__init__(
@@ -106,8 +107,8 @@ class PcapReader(PacketReader):
 
         self.pcap_path = pcap_path
         self.pcap_reader = Scapy_PcapReader(filename=str(pcap_path))
-        self.last_decoded: Message = None
-        self.last_decoded_raw: Packet = None
+        self.last_decoded: Message | None = None
+        self.last_decoded_raw: Packet | None = None
 
     def __iter__(self):
         return self
@@ -135,6 +136,8 @@ class PcapReader(PacketReader):
 
     def __next__(self) -> Message:
         pkt = self.next_interesting_raw()
+        if pkt is None:
+            raise StopIteration()
 
         if is_flagtool_packet_naive(pkt):
             msg = self.decode_flagtool_packet(bytes(pkt[TCP].payload))
@@ -172,8 +175,8 @@ class LiveSniffer(PacketReader):
         callback: Callable[[Message, Packet], None],
         msg_def_folder: PathLike,
         iface: str = "lo0",
-        client_port: int = None,
-        typedef_path: PathLike = None,
+        client_port: int | None = None,
+        typedef_path: PathLike | None = None,
         silence_decode_errors: bool = False,
     ):
         super().__init__(msg_def_folder, typedef_path, silence_decode_errors)
@@ -184,24 +187,28 @@ class LiveSniffer(PacketReader):
         self.sniffer = None
 
     def _scapy_callback(self, pkt: Packet):
-        if not (is_interesting_packet_naive(pkt) and is_ki_packet_naive(pkt)):
+        if not is_interesting_packet_naive(pkt) or not is_ki_packet_naive(pkt):
             return
         try:
-            bites = bytes(pkt[TCP].payload)
-            message = self.decode_ki_packet(bites)
-            message.timestamp = datetime.now()
-            if pkt[TCP].dport == self.client_port:
-                message.sender = MessageSender.CLIENT
-            elif self.client_port:
-                message.sender = MessageSender.SERVER
-
-            logger.debug("Captured message: %s", message)
-            self.callback(message, pkt)
+            self._extracted_from__scapy_callback_5(pkt)
         except ValueError as err:
             if str(err).startswith("Not a KI game protocol packet."):
                 logger.debug(err)
                 return
             logger.error("Cannot parse packet: %s", traceback.print_exc())
+
+    # TODO Rename this here and in `_scapy_callback`
+    def _extracted_from__scapy_callback_5(self, pkt):
+        bites = bytes(pkt[TCP].payload)
+        message = self.decode_ki_packet(bites)
+        message.timestamp = datetime.now()
+        if pkt[TCP].dport == self.client_port:
+            message.sender = MessageSender.CLIENT
+        elif self.client_port:
+            message.sender = MessageSender.SERVER
+
+        logger.debug("Captured message: %s", message)
+        self.callback(message, pkt)
 
     def open_livestream(self):
         """
@@ -229,7 +236,8 @@ class LiveSniffer(PacketReader):
             join (bool, optional): Wait for the livestream to
                 exit before returning. Defaults to True.
         """
-        self.sniffer.stop(join=join)
+        if self.sniffer:
+            self.sniffer.stop(join=join)
 
 
 def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
@@ -261,7 +269,7 @@ def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
             # millis_into:    4 : 17 - 21
             # signed_msg_len: 4 : 21 - 25
             # signed_msg:     ? : 26 -  ?
-            decoded = pkt_reader.decode_ki_packet(payload)
+            decoded = cast(SessionOfferMessage, pkt_reader.decode_ki_packet(payload))
             old_payload = payload
             # Replace signed msg with zeros
             new_payload = (
@@ -291,13 +299,13 @@ def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
             # session_id:     2 : 22 - 24
             # signed_msg_len: 4 : 24 - 28
             # signed_msg:     ? : 28 -  ?
-            decoded = pkt_reader.decode_ki_packet(payload)
+            decoded = cast(SessionAcceptMessage, pkt_reader.decode_ki_packet(payload))
             old_payload = payload
             # Replace signed msg with zeros
             new_payload = (
                 old_payload[:28]
-                + (b"\x00" * decoded.signed_message_len)
-                + old_payload[28 + decoded.signed_message_len :]
+                + (b"\x00" * decoded.signed_msg_len)
+                + old_payload[28 + decoded.signed_msg_len :]
             )
             logger.debug(
                 "Sanitized session accept packet. Was '{old_payload}', "
@@ -312,7 +320,11 @@ def sanitize_signed_msg(pkt_reader: PacketReader, payload: bytes) -> bytes:
 
 
 def filter_pcap(
-    p_in: Path, p_out: Path, compress: bool = False, sanitize: bool = False
+    msg_def_folder: PathLike,
+    p_in: Path,
+    p_out: Path,
+    compress: bool = False,
+    sanitize: bool = False,
 ) -> None:
     """
     filter_pcap removes traffic that moonlight cannot parse from a pcap file.
@@ -320,6 +332,7 @@ def filter_pcap(
         mainly session information.
 
     Args:
+        msg_def_folder: path to message definitions
         p_in (Path): pcap file to filter
         p_out (Path): path to write new, filtered pcap to
         compress (bool, optional): compresses the output pcap using the
@@ -331,7 +344,7 @@ def filter_pcap(
         Exception: when underlying pcap message cannot be parsed or
             something should have been sanitized but failed
     """
-    reader = PcapReader(str(p_in.absolute().resolve()), msg_def_folder=None)
+    reader = PcapReader(p_in.absolute().resolve(), msg_def_folder=msg_def_folder)
     writer = Scapy_PcapWriter(str(p_out.absolute().resolve()), gz=compress)
     logger.info("Filtering pcap to ki traffic only: in=%s, out=%s", p_in, p_out)
     if sanitize:
@@ -342,6 +355,8 @@ def filter_pcap(
         i = 1
         while True:
             packet = reader.next_interesting_raw()
+            if packet is None:
+                raise StopIteration()
             if (
                 sanitize
                 and is_ki_packet_naive(packet)
@@ -368,10 +383,9 @@ def filter_pcap(
     except KeyboardInterrupt:
         logger.warning("Cutting filtering short and finalizing")
     except Exception as err:  # pylint: disable=broad-except
-        logger.critical(
-            "Unrecoverable error occurred while filtering pcap file", exc_info=True
-        )
-        return err
+        raise RuntimeError(
+            "Unrecoverable error occurred while filtering pcap file"
+        ) from err
     finally:
         reader.close()
         writer.close()

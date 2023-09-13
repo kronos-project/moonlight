@@ -12,7 +12,7 @@ import click
 from moonlight.net import PacketReader, Message, KeepAliveMessage
 from moonlight.util import SerdeJSONEncoder, bytes_to_pretty_str
 
-from ._util import message_def_dir_arg, typedef_option
+from moonlight.util.click import message_def_dir_arg, typedef_option
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +195,7 @@ def packet(  # pylint: disable=too-many-arguments
 
 
 @decode.command()
-#@message_def_dir_arg
+# @message_def_dir_arg
 @click.argument(
     "message_def_dir",
     type=click.Path(exists=True, dir_okay=True, resolve_path=True, path_type=Path),
@@ -273,14 +273,3 @@ def pcap(
         logger.info("Progress: Dumping to file")
         json.dump(obj=messages, fp=writer, cls=SerdeJSONEncoder, indent=2)
     rdr.close()
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-def register_to_group(group: click.Group):
-    """Adds decode commands to the given click group
-
-    Args:
-        group (click.Group): group to add commands to
-    """
-    group.add_command(decode)

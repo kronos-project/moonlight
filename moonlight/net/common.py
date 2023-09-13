@@ -8,7 +8,7 @@ from enum import Enum
 
 import struct
 from io import BytesIO
-from typing import Any
+from typing import Any, cast
 
 from moonlight.util import SerdeMixin, bytes_to_pretty_str
 
@@ -59,7 +59,7 @@ class Message(SerdeMixin):
     Extend it to create new types of messages.
     """
 
-    original_bytes: bytes
+    original_bytes: bytes | None
     ki_header: KIHeader | None = None
     sender: MessageSender | None = None
     timestamp: datetime | None = None
@@ -154,7 +154,7 @@ class DMLType(SerdeMixin, Enum):
         self.struct_code = struct_code
 
     @classmethod
-    def from_str(cls, t_name_: str) -> DMLType | None:  # sourcery skip: use-next
+    def from_str(cls, t_name_: str| None) -> DMLType | None:  # sourcery skip: use-next
         """String representation to DMLType
 
         Enum described by the given string or `None` if invalid
@@ -165,6 +165,8 @@ class DMLType(SerdeMixin, Enum):
         Returns:
             DMLType | None: enum described by the given string or `None` if invalid
         """
+        if t_name_ is None:
+            return None
         for enum in cls:
             if enum.t_name.upper() == t_name_.upper():
                 return enum
@@ -353,11 +355,29 @@ class BytestreamReader:
         return bytes(self.get_buffer())[self.buffer_position() :]
 
     def __str__(self):
-        return self.peek_remaining()
+        return str(self.peek_remaining(), encoding="utf8")
         # return f"BytestreamReader(UINT8: {self.read(DMLType.UINT8, peek=True)}, UINT16: {self.read(DMLType.UINT16, peek=True)}, BYT: {hex(self.read(DMLType.BYT, peek=True))})"
 
     def __repr__(self) -> str:
         return self.__str__()
+    
+    @classmethod
+    def from_bytes_or_passthrough(cls, bites: bytes | BytestreamReader) -> BytestreamReader:
+        """
+        from_bytes_or_passthrough takes a bytes object and makes a
+            BytestreamReader from them or returns the original
+            BytestreamReader as is if already one.
+
+        Args:
+            bites (bytes | BytestreamReader): bytes to wrap
+
+        Returns:
+            BytestreamReader: reader from given bytes or passthrough'd object
+        """
+        if type(bites) is bytes:
+            return cls(bites)
+        bites = cast(BytestreamReader, bites)
+        return bites
 
 
 @dataclass(repr=True, kw_only=True)

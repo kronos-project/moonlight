@@ -15,6 +15,7 @@ def test_character_data(
     field.definition.po_decoder.property_mask = 24
     po = field.as_property_object()
 
+    assert po is not None
     # main object
     assert po.name == "class WizardCharacterCreationInfo"
     assert po["m_templateID"] == 1

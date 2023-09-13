@@ -64,13 +64,4 @@ def filter_cmd(
         filter_pcap,
     )
 
-    filter_pcap(input_f, output_f, compress=zip, sanitize=sanitize)
-
-
-# def register_to_group(group: click.Group):
-#     """Adds pcap commands to the given command group
-
-#     Args:
-#         group (click.Group): command group to add pcap commands to
-#     """
-#     group.add_command(pcap)
+    filter_pcap(input_f, output_f, compress=zip, sanitize=sanitize)  # type: ignore

@@ -5,7 +5,7 @@ CLI entrypoint
 import logging
 import click
 
-from moonlight.cli import cli_cmd
+from .cli import cli_cmd
 
 # STANDARD_LOG_FMT = "%(levelname)-8s %(message)s"
 # STANDARD_LOG_LVL = logging.INFO
@@ -60,7 +60,6 @@ from moonlight.cli import cli_cmd
 #         log_level_int = LOGGER_LEVEL_MAP[log_level.upper()]
 
 #     logging.basicConfig(format=log_fmt, level=log_level_int)
-
 
 
 # pcap.register(cli_cmd)

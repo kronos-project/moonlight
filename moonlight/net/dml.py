@@ -8,7 +8,7 @@ import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from os import PathLike
-from typing import Any, Dict, List, Tuple, Type
+from typing import Any, Dict, List, Tuple, Type, cast
 
 from moonlight.util import SerdeMixin, bytes_to_pretty_str
 from printrospector.object import DynamicObject
@@ -45,16 +45,13 @@ def field_to_serde_keyval(field: "Field") -> Tuple:
         f_format = "STR:hex"
         f_value = bytes_to_pretty_str(field.value)
     elif isinstance(field.value, str):
-        if len(field.value) < 1:
-            f_format = "STR:hex"
-        else:
-            f_format = "STR:ascii"
+        f_format = "STR:hex" if len(field.value) < 1 else "STR:ascii"
         f_value = field.parsed_value()
     else:
         if isinstance(field.parsed_type(), DMLType):
             f_format = field.parsed_type().t_name
         else:
-            f_format = field.parsed_type().__name__
+            f_format = field.parsed_type().__name__ # type: ignore
         f_value = field.parsed_value()
     return (field.name(), {"value": f_value, "format": f_format})
 
@@ -66,7 +63,7 @@ class FieldDef(SerdeMixin):
     information.
     """
 
-    SERDE_TRANSIENT = "po_decoder"
+    SERDE_TRANSIENT = ("po_decoder",)
 
     # FIXME reduce number of fields. It's okay for now since this isn't
     # part of the public api.
@@ -167,11 +164,16 @@ class FieldDef(SerdeMixin):
         else:
             exhaustive = False
 
+        dml_type = DMLType.from_str(node.attrib.get("TYPE"))
+        if dml_type is None:
+            raise ValueError("Unrecognized DML type")
+            
+
         return cls(
             name=node.tag,
-            dml_type=DMLType.from_str(node.attrib.get("TYPE")),
-            property_object_flags=node.attrib.get("PO_FLAGS"),
-            property_object_mask=node.attrib.get("PO_MASK"),
+            dml_type=dml_type,
+            property_object_flags=node.attrib.get("PO_FLAGS"), # type: ignore # is cast
+            property_object_mask=node.attrib.get("PO_MASK"), # type: ignore # is cast
             property_object_exhaustive=exhaustive,
             noxfer=(node.attrib.get("NOXFER") == "TRUE"),
         )
@@ -296,8 +298,8 @@ class DMLMessage(Message):
 
     fields: List[Field]
     definition: DMLMessageDef
-    original_bytes: bytes = None
-    order_id: int = None
+    original_bytes: bytes | None = None
+    order_id: int
 
     # TODO: make properties
     def name(self) -> str:
@@ -309,12 +311,12 @@ class DMLMessage(Message):
         """
         return self.definition.name
 
-    def desc(self) -> str:
+    def desc(self) -> str | None:
         """
         desc is the description of this message's type
 
         Returns:
-            str: message type description
+            str | None: message type description
         """
         return self.definition.desc
 
@@ -359,7 +361,7 @@ class DMLMessage(Message):
         Returns:
             FieldDef: reference to the given field's definition
         """
-        for field in self.fields:
+        for field in self.definition.fields:
             if field.name == field_name:
                 return field
         raise AttributeError
@@ -386,7 +388,7 @@ class DMLMessage(Message):
         }
 
 
-class DMLMessageDef():
+class DMLMessageDef:
     """Defines a DML interface message and its structure.
     Provides a deserializer for the represented message."""
 
@@ -411,29 +413,56 @@ class DMLMessageDef():
         # that _MsgName field? It's often wrong.
         # #KI_Problems
         self.name = xml_def.tag
-        self.desc = None
-        self.handler = None
         self.fields: List[FieldDef] = []
+
         # only one child ever exists, the record tag
         xml_record = xml_def.find("RECORD")
+        if xml_record is None:
+            raise ValueError("Missing `RECORD` in msg def `{self.name}`")
 
-        self.desc = xml_record.find("_MsgDescription").text
-        self.handler = xml_record.find("_MsgHandler").text
+
+        ### Metadata fields ###
         # We intentionally ignore "_MsgName" because it can be wrong
-        # Game doesn't care.
-        self.order_id = xml_record.find("_MsgOrder")
-        if self.order_id is not None:
-            self.order_id = int(self.order_id.text)
+        # Game doesn't seem to actually use the value
+
+        xml_desc = xml_record.find("_MsgDescription")
+        if xml_desc is None:
+            logger.debug(f"Missing `_MsgDescription` on msg def `{self.name}`")
+
+        xml_handler = xml_record.find("_MsgHandler")
+        if xml_handler is None:
+            logger.debug(f"Missing `_MsgHandler` on msg def `{self.name}")
+
+        xml_order_id = xml_record.find("_MsgOrder")
+        # Fallthrough: defaults to init parameter
+        if xml_order_id is not None and xml_order_id.text is not None:
+            if xml_order_id.text.isdigit():
+                order_id = int(xml_order_id.text)
+            else:
+                logger.warning(f"Nonnumeric `_MsgOrder` on msg `{self.name}`")
+        
+
+        self.desc = xml_desc.text if xml_desc is not None else None
+        self.handler = xml_handler.text if xml_handler is not None else None
+        self.order_id = order_id
+
+
+        ### Message fields ###
 
         for xml_field in xml_record:
+            # Ignore metadata tags except `name` because it's used in the
+            # field definition constructor
             if xml_field.tag.startswith("_"):
                 continue
-            field_map = {"name": xml_field.tag}
+            field_map: dict[str, Any] = {"name": xml_field.tag}
+            # Game likely doesn't actually read this field
             dirty_type = xml_field.attrib.get("TYPE")
             dirty_type = dirty_type or xml_field.attrib.get("TYP")
             dirty_type = dirty_type or xml_field.attrib.get("TPYE")
             if dirty_type is None:
-                # how does this even work in the live game?!
+                # Again, the game likely doesn't read this. Or someone made
+                # a really big booboo and fixed it in code. Hopefully former.
+                # Probably latter.
                 logger.warning(
                     "A DML field was found without a type. "
                     "Since there's only one known place this happens in the "
@@ -443,7 +472,7 @@ class DMLMessageDef():
                 assert field_map["name"] == "GlobalID"
                 field_map["dml_type"] = DMLType.GID
             elif dirty_type == "UBYTE":
-                # again, i don't understand how these even work in-game
+                # Again, probably not read by the game or gross code fixes
                 field_map["dml_type"] = DMLType.UBYT
             else:
                 field_map["dml_type"] = DMLType.from_str(dirty_type)
@@ -462,7 +491,7 @@ class DMLMessageDef():
             field_map["noxfer"] = xml_field.attrib.get("NOXFER") == "TRUE"
             self.fields.append(FieldDef(**field_map))
 
-    def get_field(self, name: str) -> Field | None:  # sourcery skip: use-next
+    def get_field(self, name: str) -> FieldDef | None:  # sourcery skip: use-next
         """Finds and returns the field container matching the given name
 
         Args:
@@ -472,8 +501,8 @@ class DMLMessageDef():
             Field: attributes in the field DML definition
         """
         for field in self.fields:
-            if field["name"] == name:
-                return field.copy()
+            if field.name == name:
+                return field
         return None
 
     def reload_protocol_typedefs(self, typecache: TypeCache, typedef_path: PathLike):
@@ -495,7 +524,7 @@ class DMLMessageDef():
         reader: BytestreamReader | bytes,
         has_ki_header=False,
         has_dml_header=False,
-        packet_bytes: bytes = None,
+        packet_bytes: bytes | None = None,
     ) -> DMLMessage:
         """
         decode_message takes a message payload and decodes it as an instance
@@ -515,6 +544,7 @@ class DMLMessageDef():
             DMLMessage: container holding the decoded data as well as a
                 reference to this decoder for shared information
         """
+        reader = BytestreamReader.from_bytes_or_passthrough(reader)
         if has_ki_header:
             # advance past ki header and message header
             reader.advance(PACKET_HEADER_LEN)
@@ -530,7 +560,7 @@ class DMLMessageDef():
             fields=decoded_fields,
             definition=self,
             original_bytes=packet_bytes,
-            order_id=self.order_id,
+            order_id=self.order_id or -1,
         )
 
     def __str__(self) -> str:
@@ -636,7 +666,7 @@ class DMLProtocol:
     def decode_bytes(
         self,
         bites: BytestreamReader,
-        original_bites: bytes = None,
+        original_bites: bytes | None = None,
         has_protocol_id=False,
     ):
         """
@@ -742,11 +772,7 @@ class DMLProtocolRegistry:
             for msg in protocol.message_map.values():
                 msg.reload_protocol_typedefs(cache, typedef_path)
 
-    def decode_packet(
-        self,
-        bites: bytes,
-        has_ki_header: bool = True
-    ) -> DMLMessage:
+    def decode_packet(self, bites: bytes | BytestreamReader, has_ki_header: bool = True) -> DMLMessage:
         """
         decode_packet decodes a DML message payload into its structured form
 
@@ -760,7 +786,10 @@ class DMLProtocolRegistry:
         Returns:
             DMLMessage: payload structured form
         """
-        bites = BytestreamReader(bites)
+        if type(bites) is bytes:
+            bites = BytestreamReader(bites)
+        bites = cast(BytestreamReader, bites)
+        
         if has_ki_header:
             original_bites = bites
             ki_header = KIHeader.from_bytes(bites)
