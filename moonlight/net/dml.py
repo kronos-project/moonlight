@@ -4,11 +4,12 @@ Parser for DML message definitions and parsing messages based on them
 
 from __future__ import annotations
 
+from ctypes import ArgumentError
 import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from os import PathLike
-from typing import Any, Dict, List, Tuple, Type, cast
+from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
 from moonlight.util import SerdeMixin, bytes_to_pretty_str
 from printrospector.object import DynamicObject
@@ -190,7 +191,7 @@ class Field(SerdeMixin):
     unserialized. To get the represented property object, use `as_property_object`
     """
 
-    SERDE_TRANSIENT = ("value", "definition")
+    SERDE_TRANSIENT = ("value", "definition",)
     SERDE_SYNTHETIC = {
         "value": lambda x: x.as_property_object()
         if x.is_property_object()
@@ -245,9 +246,7 @@ class Field(SerdeMixin):
         Returns:
             Any: objectproperty or "primitive" value
         """
-        if self.is_property_object():
-            return self.as_property_object()
-        return self.value
+        return self.as_property_object() if self.is_property_object() else self.value
 
     def parsed_type(self) -> Type | DMLType:
         """
@@ -258,9 +257,7 @@ class Field(SerdeMixin):
         Returns:
             Type | DMLType: DynamicObject class or a DML type
         """
-        if self.is_property_object():
-            return DynamicObject
-        return self.dml_type()
+        return DynamicObject if self.is_property_object() else self.dml_type()
 
     # TODO: dead human repr
     # def to_human_dict(self) -> dict:
@@ -603,6 +600,18 @@ class DMLMessageDef:
 
         return id_map
 
+def _fetch_protocol_metadata_id(meta: ET.Element[str]) -> int:
+    val = meta.find("ServiceID")
+    if val is None:
+        raise ValueError("DML metadata block missing field ServiceID")
+    val = val.text
+    if val is None:
+        raise ValueError("DML metadata block invalid field ServiceID")
+    try:
+        val = int(val)
+    except ValueError as e:
+        raise ValueError("DML metadata block invalid field ServiceID") from e
+    return val
 
 class DMLProtocol:
     """
@@ -610,8 +619,8 @@ class DMLProtocol:
     MessageDefinitions as well as decoding message payloads from the represented
     protocol
     """
-
     def parse_dml_file(self, filename: PathLike) -> None:
+        # sourcery skip: avoid-builtin-shadow
         """Loads the protocol according to the given xml
 
         Args:
@@ -624,10 +633,19 @@ class DMLProtocol:
 
         # store protocol block as our own instance vars, not as a block
         metadata_block = root.find("_ProtocolInfo/RECORD")
-        self.id = int(metadata_block.find("ServiceID").text)
-        self.type = metadata_block.find("ProtocolType").text
-        self.version = int(metadata_block.find("ProtocolVersion").text)
-        self.desc = metadata_block.find("ProtocolDescription").text
+        if metadata_block is None:
+            raise ValueError("DML metadata block missing")
+        self.id = _fetch_protocol_metadata_id(metadata_block)
+
+        type = metadata_block.find("ProtocolType")
+        self.type = type.text if type is not None else None
+
+        version = metadata_block.find("ProtocolVersion")
+        version = version.text if version is not None else None
+        self.version = int(version) if version is not None and version.isnumeric() else None
+
+        desc = metadata_block.find("ProtocolDescription")
+        self.desc = desc.text if desc is not None else None
 
         known_names = set()
         for block in list(root):
@@ -647,21 +665,26 @@ class DMLProtocol:
         # sort the message blocks and assign their record id
         self.message_map = DMLMessageDef.list_to_id_map(message_defs)
 
-    def __init__(self, filename: PathLike | None = None) -> None:
+    def __init__(self, filename: Optional[PathLike] = None, id: Optional[int] = None) -> None:
         """
         __init__
 
         Args:
             filename (PathLike | None, optional): path to the dml message
                 file this protocol will represent. Defaults to None.
+            id (Optional[int]): id of this protocol. Required when no filepath is provided.
         """
-        self.id: int = None  # pylint: disable=invalid-name
-        self.type: str = None
-        self.version: int = None
-        self.desc: str = None
+        # self.id: id   # gets defined later in here, just leaving here for clarity
+        self.type: Optional[str] = None
+        self.version: Optional[int] = None
+        self.desc: Optional[str] = None
         self.message_map: Dict[int, DMLMessageDef] = {}
         if filename:
             self.parse_dml_file(filename)
+        elif id is None:
+            raise ArgumentError("id is required when not providing a path")
+        else:
+            self.id = id
 
     def decode_bytes(
         self,
@@ -706,9 +729,6 @@ class DMLProtocol:
                 original_bites,
             )
             return None
-        if dml_object is not None:
-            dml_object.protocol_id = self.id
-            dml_object.protocol_desc = self.desc
         return dml_object
 
 
@@ -720,7 +740,7 @@ class DMLProtocolRegistry:
     def __init__(self, *protocol_files, typedef_path: PathLike | None = None) -> None:
         self.protocol_map: Dict[int, DMLProtocol] = {}
         self.typedef_path = typedef_path
-        self.typedef_cache: TypeCache = None
+        self.typedef_cache: Optional[TypeCache] = None
 
         for file in protocol_files:
             try:
@@ -786,26 +806,33 @@ class DMLProtocolRegistry:
         Returns:
             DMLMessage: payload structured form
         """
-        if type(bites) is bytes:
-            bites = BytestreamReader(bites)
-        bites = cast(BytestreamReader, bites)
-        
-        if has_ki_header:
+        if isinstance(bites, bytes):
             original_bites = bites
-            ki_header = KIHeader.from_bytes(bites)
+            bites_reader = BytestreamReader(bites)
+        elif isinstance(bites, BytestreamReader):
+            bites_reader = bites
+            original_bites = bites.read_raw(-1, peek=True)
+        else:
+            raise ArgumentError("unrecognized bites type")
+
+        if has_ki_header:
+            original_bites = original_bites
+            ki_header = KIHeader.from_bytes(bites_reader)
         else:
             original_bites = None
             ki_header = None
 
-        protocol_id = bites.read(DMLType.UBYT)
+        protocol_id = bites_reader.read(DMLType.UBYT)
         if protocol_id not in self.protocol_map:
             raise ValueError(f"unknown dml protocol: {protocol_id}")
 
         msg = self.get_by_id(protocol_id).decode_bytes(
-            bites,
+            bites_reader,
             original_bites=original_bites,
         )
         if msg:
             msg.ki_header = ki_header
+        else:
+            raise ValueError("Failed to parse packet")
             # TODO move original bites assignment here
         return msg

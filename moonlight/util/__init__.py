@@ -1,9 +1,11 @@
 """Project utilities"""
 
+from typing import Optional
+
 from .serde_mixin import SerdeMixin, SerdeJSONEncoder
 
 
-def bytes_to_pretty_str(bites: bytes) -> str:
+def bytes_to_pretty_str(bites: Optional[bytes]) -> str:
     """
     bytes_to_pretty_str takes a bytestring and turns it into pretty-printable
         hexadecimal such as "15 CE 6F"

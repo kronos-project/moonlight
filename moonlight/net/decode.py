@@ -1,6 +1,7 @@
 from os import PathLike, listdir
 from os.path import isfile, join
 import logging
+from typing import Optional
 
 from .control import ControlProtocol, ControlMessage
 from .dml import DMLMessage, DMLProtocolRegistry
@@ -20,7 +21,7 @@ class PacketReader:
     def __init__(
         self,
         msg_def_folder: PathLike,
-        typedef_path: PathLike | None = None,
+        typedef_path: Optional[PathLike] = None,
         silence_decode_errors: bool = False,
     ):
         """
@@ -67,7 +68,7 @@ class PacketReader:
             "Invalid packet data or message definitions", original_bytes
         ) from exc
 
-    def decode_flagtool_packet(self, bites: bytes) -> FlagtoolMessage | None:
+    def decode_flagtool_packet(self, bites: bytes) -> Optional[FlagtoolMessage]:
         """
         decode_flagtool_packet decodes a flagtool packet. Nuff' said.
 
@@ -84,7 +85,7 @@ class PacketReader:
             # error handling and returns are dependent on reader settings
             return self._handle_decode_exc(err, bites)
 
-    def decode_ki_packet(self, bites: bytes) -> Message | None:
+    def decode_ki_packet(self, bites: bytes) -> Optional[Message]:
         """
         decode_ki_packet decodes a ki message into a DML or Control message
 

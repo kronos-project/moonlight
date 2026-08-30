@@ -45,10 +45,7 @@ class MessageSender(SerdeMixin, Enum):
         Returns:
             MessageSender | None: representing enum if exists, otherwise `None`
         """
-        for const in cls:
-            if const.netpack_port == port:
-                return const
-        return None
+        return next((const for const in cls if const.netpack_port == port), None)
 
 
 @dataclass(init=True, repr=True, kw_only=True)
@@ -206,7 +203,7 @@ class BytestreamReader:
         """Reads the given number of bytes off the string
 
         Args:
-            length (int): number of bytes to read. If not provided, reads all.
+            length (int): number of bytes to read. If > 1, reads all.
             peek (bool, optional): True if reading leaves the bytes in
               the buffer. Defaults to False.
         """

@@ -6,13 +6,12 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 import click
 
 from moonlight.net import PacketReader, Message, KeepAliveMessage
 from moonlight.util import SerdeJSONEncoder, bytes_to_pretty_str
-
-from moonlight.util.click import message_def_dir_arg, typedef_option
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,11 @@ def decode():
     default=False,
     help="include service and order in the output json",
 )
-# @typedef_option
+@click.option(
+    "--typedefs",
+    default=None,
+    type=click.Path(exists=True, file_okay=True, resolve_path=True, path_type=Path),
+)
 # @click.option(
 #     "--filter-str",
 #     type=str,
@@ -65,7 +68,7 @@ def live(
     message_def_dir: Path,
     no_keep_alive: bool,
     show_service: bool,
-    # typedefs: Path,
+    typedefs: Optional[Path],
     # filter_str: str,
     # iface: str
 ):
@@ -208,12 +211,18 @@ def packet(  # pylint: disable=too-many-arguments
     "output_f",
     type=click.Path(file_okay=True, resolve_path=True, path_type=Path),
 )
-@typedef_option
+@click.option(
+    "-t",
+    "--typedefs",
+    default=None,
+    type=click.Path(file_okay=True, exists=True, resolve_path=True, path_type=Path),
+    help="Path to wizwalker typedef json",
+)
 def pcap(
     message_def_dir: Path,
     input_f: Path,
     output_f: Path,
-    typedefs: Path,
+    typedefs: Optional[Path],
 ):
     """
     Decode pcap to a JSON representation
@@ -257,7 +266,7 @@ def pcap(
                         "error": {
                             "message": str(err),
                             "raw": bytes_to_pretty_str(
-                                bytes(rdr.last_decoded_raw[TCP].payload)
+                                bytes(rdr.last_decoded_raw[TCP].payload) # type: ignore
                             ),
                         }
                     }

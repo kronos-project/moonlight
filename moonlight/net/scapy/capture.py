@@ -10,7 +10,7 @@ from datetime import datetime
 from os import PathLike, listdir
 from os.path import isfile
 from pathlib import Path
-from typing import Callable, cast
+from typing import Callable, Optional, cast
 from moonlight.net.control import ControlMessage
 
 # scapy on import prints warnings about system interfaces
@@ -107,19 +107,19 @@ class PcapReader(PacketReader):
 
         self.pcap_path = pcap_path
         self.pcap_reader = Scapy_PcapReader(filename=str(pcap_path))
-        self.last_decoded: Message | None = None
-        self.last_decoded_raw: Packet | None = None
+        self.last_decoded: Optional[Message] = None
+        self.last_decoded_raw: Optional[Packet] = None
 
     def __iter__(self):
         return self
 
-    def next_interesting_raw(self) -> Packet | None:
+    def next_interesting_raw(self) -> Optional[Packet]:
         """
         next_interesting_raw gets the next packet of interest from the current
             capture and returns it as a standard `scapy.packet.Packet`
 
         Returns:
-            scapy.packet.Packet | None: Next interesting packet or None if at
+            Optional[scapy.packet.Packet]: Next interesting packet or None if at
                 the end of the capture
         """
         while True:
@@ -149,7 +149,8 @@ class PcapReader(PacketReader):
             msg.sender = MessageSender.from_capture_port(pkt[TCP].dport)
             msg.timestamp = datetime.fromtimestamp(float(pkt.time))
         self.last_decoded = msg
-        return msg
+        
+        return self.__next__() if msg is None else msg
 
     def close(self) -> None:
         """
@@ -171,12 +172,12 @@ class LiveSniffer(PacketReader):
 
     def __init__(
         self,
-        filter_str: str,
         callback: Callable[[Message, Packet], None],
         msg_def_folder: PathLike,
         iface: str = "lo0",
-        client_port: int | None = None,
-        typedef_path: PathLike | None = None,
+        filter_str: Optional[str] = None,
+        client_port: Optional[int] = None,
+        typedef_path: Optional[PathLike] = None,
         silence_decode_errors: bool = False,
     ):
         super().__init__(msg_def_folder, typedef_path, silence_decode_errors)
@@ -187,7 +188,7 @@ class LiveSniffer(PacketReader):
         self.sniffer = None
 
     def _scapy_callback(self, pkt: Packet):
-        if not is_interesting_packet_naive(pkt) or not is_ki_packet_naive(pkt):
+        if not (is_interesting_packet_naive(pkt) and is_ki_packet_naive(pkt)):
             return
         try:
             self._extracted_from__scapy_callback_5(pkt)
@@ -201,11 +202,14 @@ class LiveSniffer(PacketReader):
     def _extracted_from__scapy_callback_5(self, pkt):
         bites = bytes(pkt[TCP].payload)
         message = self.decode_ki_packet(bites)
-        message.timestamp = datetime.now()
+        if not message:
+            return # just to be safe, but this is should be fine
+        
+        message.timestamp = datetime.now() # pyright: ignore[reportOptionalMemberAccess]
         if pkt[TCP].dport == self.client_port:
-            message.sender = MessageSender.CLIENT
+            message.sender = MessageSender.CLIENT # pyright: ignore[reportOptionalMemberAccess]
         elif self.client_port:
-            message.sender = MessageSender.SERVER
+            message.sender = MessageSender.SERVER # pyright: ignore[reportOptionalMemberAccess]
 
         logger.debug("Captured message: %s", message)
         self.callback(message, pkt)

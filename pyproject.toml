@@ -1,42 +1,64 @@
-[tool.poetry]
+[project]
 name = "moonlight"
 version = "0.4.1"
 description = "Wizard101 traffic decoder"
-authors = ["Ethan Zeigler <ethanzeigler@gmail.com>", "Kronos Authors <>"]
-license = "GPL-3.0-only"
+authors = [
+    { name = "Ethan Zeigler", email = "ethanzeigler@gmail.com" },
+    { name = "Kronos Authors" },
+]
+requires-python = ">=3.12,<4"
 readme = "README.md"
-repository = "https://github.com/kronos-project/moonlight"
-include = [
-    "moonlight",
-    "test",
-    "poetry.lock",
-    "pyproject.toml"
+license = "GPL-3.0-only"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "printrospector",
+    "katsuba",
+    "click>=8.0.4,<9",
+    "colorama>=0.4.4,<0.5",
+    "scapy>=2.5.0,<3",
 ]
 
-[tool.poetry.dependencies]
-python = ">=3.12,<4"
-# https://github.com/secdev/scapy/issues/3246 fix isn't on pypi
-printrospector = {git = "https://gitlab.com/vale_/printrospector", rev = "main"}
-katsuba = {git = "https://github.com/vbe0201/katsuba.git", rev = "36e296f6c6ab21459edbd61d8ba333c950e9ac44", subdirectory = "src/katsuba-py"}
-click = "^8.0.4"
-colorama = "^0.4.4"
-scapy = "^2.5.0"
+[project.urls]
+Repository = "https://github.com/kronos-project/moonlight"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^9.0.3"
-black = "^26.3.1"
-pre-commit = "^2.17.0"
-ipython = "^8.10.0"
-ipykernel = "^6.9.2"
-snakeviz = "^2.1.1"
-pyright = "^1.1.326"
-
-[tool.poetry.scripts]
+[project.scripts]
 moonlight = "moonlight.__main__:cli_cmd"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3,<10",
+    "black>=26.3.1,<27",
+    "pre-commit>=2.17.0,<3",
+    "ipython>=8.10.0,<9",
+    "ipykernel>=6.9.2,<7",
+    "snakeviz>=2.1.1,<3",
+    "pyright>=1.1.326,<2",
+]
+
+[tool.uv]
+default-groups = "all"
+
+[tool.uv.sources]
+printrospector = { git = "https://gitlab.com/vale_/printrospector", rev = "main" }
+katsuba = { git = "https://github.com/vbe0201/katsuba.git", rev = "36e296f6c6ab21459edbd61d8ba333c950e9ac44", subdirectory = "src/katsuba-py" }
+
+[tool.uv.build-backend]
+module-root = ""
+source-include = [
+    "moonlight/**",
+    "test/**",
+    "poetry.lock",
+    "pyproject.toml",
+]
+
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = [

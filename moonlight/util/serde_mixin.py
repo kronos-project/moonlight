@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from json import JSONEncoder
 from types import LambdaType
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 
 class SerdeMixin:
-    SERDE_TRANSIENT: tuple[str] | tuple[()] = ()
+    SERDE_TRANSIENT: tuple[str, ...] | tuple[()] = ()
     SERDE_TRANSFORM: dict[str, Tuple[LambdaType, LambdaType]]
     SERDE_SYNTHETIC: dict[str, LambdaType]
     SERDE_RENAME: dict[str, str]
@@ -48,7 +48,7 @@ class SerdeMixin:
         return keypairs
 
     @classmethod
-    def from_serde_dict(cls, data: Any, ctx: dict[str, Any] = dict()) -> SerdeMixin:
+    def from_serde_dict(cls, data: Any, ctx: Optional[dict[str, Any]] = None) -> SerdeMixin:
         raise NotImplementedError()
         # if ctx is None:
         #     ctx = {}
